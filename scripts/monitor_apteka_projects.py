@@ -32,6 +32,18 @@ STATE_PATH = Path("data/apteka_projects_state.json")
 REPORT_DIR = Path("reports")
 MAX_ARTICLE_TEXT_CHARS = 180_000
 MAX_PROJECTS_PER_RUN = 30
+AI_SCHEMA_VERSION = 2
+
+BLOCKED_EMAIL_DOMAINS = {
+    "morion.ua",
+    "apteka.ua",
+}
+
+SUBMISSION_CONTEXT_RE = re.compile(
+    r"пропозиці\w*|зауважен\w*|надсилат\w*|направлят\w*|"
+    r"приймают\w*|подават\w*|подання\s+пропозицій",
+    re.IGNORECASE,
+)
 
 HEADERS = {
     "User-Agent": (
@@ -106,27 +118,26 @@ AI_SCHEMA: dict[str, Any] = {
         },
         "developer": {
             "type": "string",
-            "description": "Орган-розробник проєкту. Порожній рядок, якщо в тексті не встановлено.",
+            "description": "Орган-розробник проєкту. Порожній рядок, якщо не встановлено.",
         },
         "official_source_url": {
             "type": "string",
             "description": (
-                "Пряме посилання на офіційну державну сторінку оприлюднення "
-                "саме цього проєкту. Використовувати лише URL із наданого тексту "
-                "або технічних підказок. Порожній рядок, якщо не встановлено."
+                "Пряме посилання на офіційну державну сторінку саме цього "
+                "проєкту. Лише URL із наданих технічних підказок. "
+                "Порожній рядок, якщо не встановлено."
             ),
         },
         "official_publication_date": {
             "type": "string",
             "description": (
                 "Дата офіційного оприлюднення проєкту для обговорення у форматі "
-                "YYYY-MM-DD. Не використовувати історичні дати актів із назви. "
-                "Порожній рядок, якщо точно не встановлено."
+                "YYYY-MM-DD. Не використовувати історичні дати актів із назви."
             ),
         },
         "official_date_evidence": {
             "type": "string",
-            "description": "Короткий точний фрагмент тексту, що підтверджує офіційну дату.",
+            "description": "Короткий дослівний фрагмент, що підтверджує дату.",
         },
         "deadline_date": {
             "type": "string",
@@ -138,14 +149,10 @@ AI_SCHEMA: dict[str, Any] = {
         "deadline_basis": {
             "type": "string",
             "enum": ["EXPLICIT", "CALCULATED", "NOT_FOUND"],
-            "description": (
-                "EXPLICIT — кінцева дата прямо наведена; CALCULATED — обчислена "
-                "з точної дати початку та тривалості; NOT_FOUND — не встановлена."
-            ),
         },
         "deadline_evidence": {
             "type": "string",
-            "description": "Короткий точний фрагмент тексту про строк подання.",
+            "description": "Короткий дослівний фрагмент про строк подання.",
         },
         "contact_department": {
             "type": "string",
@@ -153,11 +160,11 @@ AI_SCHEMA: dict[str, Any] = {
         },
         "contact_person": {
             "type": "string",
-            "description": "ПІБ контактної особи без посади, якщо її зазначено.",
+            "description": "ПІБ контактної особи без посади.",
         },
         "contact_position": {
             "type": "string",
-            "description": "Посада контактної особи, якщо зазначена.",
+            "description": "Посада контактної особи.",
         },
         "postal_address": {
             "type": "string",
@@ -166,43 +173,39 @@ AI_SCHEMA: dict[str, Any] = {
         "emails": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Email-адреси для подання пропозицій. Не вигадувати.",
+            "description": (
+                "Лише email, прямо зазначені для подання пропозицій або "
+                "зауважень. Не включати редакційні чи технічні адреси сайту."
+            ),
         },
         "phones": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Телефони для подання пропозицій. Не вигадувати.",
+            "description": "Лише телефони, зазначені у блоці подання пропозицій.",
         },
         "submission_format": {
             "type": "string",
             "description": (
-                "Вимоги до способу або форми подання: письмово, електронно, "
+                "Спосіб або форма подання: письмово, електронно, "
                 "порівняльна таблиця тощо."
             ),
         },
         "contacts_evidence": {
             "type": "string",
-            "description": "Короткий точний фрагмент тексту з контактами та формою подання.",
-        },
-        "summary": {
-            "type": "string",
             "description": (
-                "Практичне legal summary українською: 2–4 короткі речення, "
-                "до 650 символів, без вступних фраз."
+                "Короткий дослівний фрагмент із контактами та способом подання."
             ),
         },
-        "practical_impact": {
-            "type": "string",
-            "description": (
-                "До 450 символів: які процеси виробника лікарських засобів, "
-                "дистриб'ютора або аптечного бізнесу потенційно зачіпає проєкт."
-            ),
-        },
-        "affected_areas": {
+        "summary_paragraphs": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "До п'яти коротких сфер впливу.",
-            "maxItems": 5,
+            "minItems": 2,
+            "maxItems": 4,
+            "description": (
+                "Від двох до чотирьох коротких абзаців українською. "
+                "Кожен абзац описує одну окрему ключову зміну або нововведення. "
+                "Без оцінки практичного впливу, рекомендацій чи загальних висновків."
+            ),
         },
         "confidence": {
             "type": "string",
@@ -211,7 +214,11 @@ AI_SCHEMA: dict[str, Any] = {
         "warnings": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Неузгодженості, помилки дат або відсутні дані.",
+            "description": (
+                "Лише критичні внутрішні застереження щодо достовірності. "
+                "Не вказувати відсутність необов'язкових реквізитів і не описувати "
+                "технічні помилки, якщо коректне значення вдалося встановити."
+            ),
         },
     },
     "required": [
@@ -231,15 +238,12 @@ AI_SCHEMA: dict[str, Any] = {
         "phones",
         "submission_format",
         "contacts_evidence",
-        "summary",
-        "practical_impact",
-        "affected_areas",
+        "summary_paragraphs",
         "confidence",
         "warnings",
     ],
     "additionalProperties": False,
 }
-
 
 @dataclass
 class Project:
@@ -250,11 +254,13 @@ class Project:
     article_text: str
     content_hash: str
     document_links: list[str] = field(default_factory=list)
+    document_items: list[dict[str, str]] = field(default_factory=list)
     official_links: list[str] = field(default_factory=list)
     email_hints: list[str] = field(default_factory=list)
     phone_hints: list[str] = field(default_factory=list)
     ai_status: str = ""
     ai_model: str = ""
+    ai_schema_version: int = AI_SCHEMA_VERSION
     ai_cached: bool = False
     act_type: str = ""
     developer: str = ""
@@ -274,13 +280,11 @@ class Project:
     phones: list[str] = field(default_factory=list)
     submission_format: str = ""
     contacts_evidence: str = ""
-    summary: str = ""
-    practical_impact: str = ""
-    affected_areas: list[str] = field(default_factory=list)
+    summary_paragraphs: list[str] = field(default_factory=list)
     confidence: str = "LOW"
     warnings: list[str] = field(default_factory=list)
     days_until_deadline: int | None = None
-
+    notified_at: str = ""
 
 def clean(value: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(value or "")).strip()
@@ -296,6 +300,34 @@ def unique(values: list[str]) -> list[str]:
             seen.add(key)
             result.append(normalized)
     return result
+
+
+def email_domain(value: str) -> str:
+    candidate = clean(value).lower()
+    return candidate.rsplit("@", 1)[-1] if "@" in candidate else ""
+
+
+def is_blocked_email(value: str) -> bool:
+    domain = email_domain(value)
+    return any(
+        domain == blocked or domain.endswith("." + blocked)
+        for blocked in BLOCKED_EMAIL_DOMAINS
+    )
+
+
+def submission_context(text: str, radius: int = 1400) -> str:
+    chunks: list[str] = []
+
+    for match in SUBMISSION_CONTEXT_RE.finditer(text or ""):
+        start = max(0, match.start() - 260)
+        end = min(len(text), match.start() + radius)
+        chunks.append(text[start:end])
+
+    return clean(" ".join(chunks[:8]))
+
+
+def evidence_is_submission_related(value: str) -> bool:
+    return bool(SUBMISSION_CONTEXT_RE.search(value or ""))
 
 
 def bool_env(name: str, default: bool = False) -> bool:
@@ -628,53 +660,156 @@ def decode_cfemail(encoded: str) -> str:
         return ""
 
 
-def extract_email_hints(soup: BeautifulSoup, raw_html: str) -> list[str]:
-    found: list[str] = []
+def extract_email_hints(
+    soup: BeautifulSoup,
+    raw_html: str,
+    article_text: str,
+) -> list[str]:
+    candidates: dict[str, list[str]] = {}
+    article_submission_text = submission_context(article_text).lower()
+
+    def add_candidate(value: str, context: str = "") -> None:
+        candidate = clean(value).lower()
+        if not EMAIL_RE.fullmatch(candidate):
+            return
+        if candidate == "email@example.com" or is_blocked_email(candidate):
+            return
+        candidates.setdefault(candidate, []).append(clean(context))
 
     for link in soup.find_all("a", href=True):
         href = html.unescape(str(link.get("href") or ""))
         lower = href.lower()
+        values: list[str] = []
 
         if lower.startswith("mailto:"):
             address = unquote(href[7:]).split("?", 1)[0].strip()
-            found.extend(part.strip() for part in address.split(",") if part.strip())
+            values.extend(
+                part.strip()
+                for part in re.split(r"[,;]", address)
+                if part.strip()
+            )
 
         if "/cdn-cgi/l/email-protection#" in lower:
-            encoded = href.rsplit("#", 1)[-1]
-            decoded = decode_cfemail(encoded)
+            decoded = decode_cfemail(href.rsplit("#", 1)[-1])
             if decoded:
-                found.append(decoded)
+                values.append(decoded)
+
+        if not values:
+            continue
+
+        context_parts: list[str] = []
+        current: Tag | None = link
+        for _ in range(4):
+            parent = current.parent if current else None
+            if not isinstance(parent, Tag):
+                break
+            context_parts.append(clean(parent.get_text(" ", strip=True)))
+            current = parent
+
+        context = clean(" ".join(context_parts))
+        for value in values:
+            add_candidate(value, context)
 
     for tag in soup.find_all(attrs={"data-cfemail": True}):
         decoded = decode_cfemail(str(tag.get("data-cfemail") or ""))
-        if decoded:
-            found.append(decoded)
+        if not decoded:
+            continue
 
-    found.extend(EMAIL_RE.findall(html.unescape(raw_html)))
+        context_parts: list[str] = []
+        current: Tag | None = tag
+        for _ in range(4):
+            parent = current.parent if current else None
+            if not isinstance(parent, Tag):
+                break
+            context_parts.append(clean(parent.get_text(" ", strip=True)))
+            current = parent
 
-    return unique(
-        email.lower()
-        for email in found
-        if EMAIL_RE.fullmatch(email.strip())
-        and email.lower() != "email@example.com"
-    )
+        add_candidate(decoded, clean(" ".join(context_parts)))
 
+    for candidate in EMAIL_RE.findall(html.unescape(raw_html)):
+        add_candidate(candidate, "")
+
+    accepted: list[str] = []
+
+    for candidate, contexts in candidates.items():
+        in_article_submission_block = candidate in article_submission_text
+        in_dom_submission_block = any(
+            candidate in context.lower()
+            and evidence_is_submission_related(context)
+            for context in contexts
+        )
+
+        if in_article_submission_block or in_dom_submission_block:
+            accepted.append(candidate)
+
+    return unique(accepted)[:3]
 
 def extract_phone_hints(text: str) -> list[str]:
-    return unique(PHONE_RE.findall(text))
+    return unique(PHONE_RE.findall(submission_context(text)))[:3]
+
+def infer_document_label(anchor_text: str, url: str) -> str:
+    decoded_url = unquote(url)
+    filename = Path(urlparse(decoded_url).path).name
+    value = clean(f"{anchor_text} {filename}").lower()
+
+    patterns = [
+        (r"порівняльн", "Порівняльна таблиця"),
+        (r"пояснювальн", "Пояснювальна записка"),
+        (r"аналіз.{0,30}регуляторн|(?:^|[^а-я])арв(?:[^а-я]|$)", "Аналіз регуляторного впливу"),
+        (r"повідомлен.{0,30}оприлюднен", "Повідомлення про оприлюднення"),
+        (r"проєкт.{0,40}постанов|проект.{0,40}постанов", "Проєкт постанови"),
+        (r"проєкт.{0,40}наказ|проект.{0,40}наказ", "Проєкт наказу"),
+        (r"проєкт.{0,40}закону|проект.{0,40}закону", "Проєкт закону"),
+        (r"довідк", "Довідка"),
+        (r"фінансов|економічн.{0,20}розрах", "Фінансово-економічні розрахунки"),
+    ]
+
+    for pattern, label in patterns:
+        if re.search(pattern, value, re.IGNORECASE):
+            return label
+
+    cleaned_anchor = clean(anchor_text)
+    generic = {
+        "",
+        "документ",
+        "завантажити",
+        "скачати",
+        "файл",
+        "посилання",
+    }
+
+    if cleaned_anchor.lower() not in generic and 3 <= len(cleaned_anchor) <= 90:
+        return cleaned_anchor
+
+    return "Документ"
 
 
-def extract_links(soup: BeautifulSoup) -> tuple[list[str], list[str]]:
+def extract_links(
+    soup: BeautifulSoup,
+) -> tuple[list[str], list[dict[str, str]]]:
     official: list[str] = []
-    documents: list[str] = []
+    documents: list[dict[str, str]] = []
+    seen_documents: set[str] = set()
 
     for link in soup.find_all("a", href=True):
-        absolute = urljoin(BASE_URL, html.unescape(str(link.get("href") or "")))
+        absolute = urljoin(
+            BASE_URL,
+            html.unescape(str(link.get("href") or "")),
+        )
         parsed = urlparse(absolute)
         host = parsed.netloc.lower()
 
-        if FILE_RE.search(absolute):
-            documents.append(absolute)
+        if FILE_RE.search(absolute) and absolute not in seen_documents:
+            documents.append(
+                {
+                    "url": absolute,
+                    "label": infer_document_label(
+                        clean(link.get_text(" ", strip=True)),
+                        absolute,
+                    ),
+                }
+            )
+            seen_documents.add(absolute)
 
         if (
             host.endswith(".gov.ua")
@@ -682,8 +817,7 @@ def extract_links(soup: BeautifulSoup) -> tuple[list[str], list[str]]:
         ) and "apteka.ua" not in host:
             official.append(absolute)
 
-    return unique(official), unique(documents)
-
+    return unique(official), documents
 
 def deterministic_official_date(text: str, article_date: date) -> date | None:
     candidates: list[date] = []
@@ -756,8 +890,8 @@ def build_ai_prompt(project: Project) -> str:
         "article_title": project.title,
         "apteka_publication_date": project.apteka_publication_date,
         "article_url": project.article_url,
-        "emails_found_in_html": project.email_hints,
-        "phones_found_in_html": project.phone_hints,
+        "submission_email_hints": project.email_hints,
+        "submission_phone_hints": project.phone_hints,
         "official_links": project.official_links[:10],
         "document_links": project.document_links[:20],
     }
@@ -767,27 +901,42 @@ def build_ai_prompt(project: Project) -> str:
 
 ЗАВДАННЯ:
 1. Встанови офіційну дату оприлюднення проєкту для громадського обговорення.
-2. Встанови останній день подання пропозицій/зауважень.
-3. Витягни точні контакти та вимоги до форми подання.
-4. Визнач пряме офіційне державне посилання саме на цей проєкт, якщо воно є.
-5. Підготуй коротке практичне legal summary і вплив для виробника лікарських засобів.
-6. Поверни лише структурований JSON за заданою схемою.
+2. Встанови останній день подання пропозицій або зауважень.
+3. Витягни лише контакти, прямо призначені для подання таких пропозицій.
+4. Визнач пряме офіційне державне посилання на цей проєкт, якщо воно є.
+5. Сформуй AI Summary як 2–4 окремі короткі абзаци.
+6. Поверни лише JSON за заданою схемою.
 
-КРИТИЧНІ ПРАВИЛА:
-- Не використовуй як дату оприлюднення дати нормативних актів у назві,
-  пояснювальній записці, посиланнях або історичних прикладах.
-- Дата публікації Apteka.ua не обов'язково є офіційною датою оприлюднення.
-- Якщо в повідомленні наведено період "з DD.MM.YYYY по DD.MM.YYYY",
-  початок зазвичай є датою офіційного оприлюднення, а кінець — строком.
-- Якщо є лише тривалість у днях і точна дата початку, строк можна обчислити,
+ПРАВИЛА ДЛЯ ДАТ:
+- Не використовуй історичні дати нормативних актів із назви, пояснювальної
+  записки, посилань або прикладів.
+- Дата Apteka.ua не обов'язково є офіційною датою оприлюднення.
+- Якщо наведено період "з DD.MM.YYYY по DD.MM.YYYY", початок може бути
+  датою оприлюднення, а кінець — строком подання.
+- Якщо є тривалість у днях і точна дата початку, строк можна обчислити,
   позначивши deadline_basis = CALCULATED.
-- Якщо дані не встановлені точно — поверни порожній рядок або порожній масив.
-- Не вигадуй email, телефони, ПІБ, дати чи офіційні посилання.
-- Evidence-поля мають містити короткі дослівні фрагменти наданого тексту.
-- Summary: 2–4 короткі речення, до 650 символів, без вступів і загальної оцінки.
-- Practical impact: конкретні процеси компанії, які варто перевірити.
+- Якщо коректну дату встановлено, не описуй технічні помилки або розбіжності
+  дат у Summary чи warnings.
 
-ТЕХНІЧНІ ПІДКАЗКИ З HTML:
+ПРАВИЛА ДЛЯ КОНТАКТІВ:
+- Бери лише email і телефони з абзацу про подання пропозицій/зауважень.
+- Не включай редакційні, рекламні або технічні адреси сайту.
+- Заборонено включати адреси доменів @morion.ua та @apteka.ua.
+- Загальну адресу органу включай лише тоді, коли вона прямо зазначена
+  як адреса для подання пропозицій.
+- Не вигадуй контакти.
+
+ПРАВИЛА ДЛЯ AI SUMMARY:
+- Поверни 2–4 абзаци; кожен елемент масиву — окремий абзац.
+- В одному абзаці коротко опиши одну ключову зміну або нововведення.
+- 1–2 речення в кожному абзаці.
+- Не оцінюй практичний вплив на конкретну компанію.
+- Не надавай рекомендацій, переліків дій, переваг або недоліків.
+- Не додавай тематичних тегів.
+- Не згадуй AI, модель, якість парсингу або технічні помилки.
+- Уникай вступних фраз і загальних оцінок.
+
+ТЕХНІЧНІ ПІДКАЗКИ:
 {json.dumps(hints, ensure_ascii=False, indent=2)}
 
 ТЕКСТ ПУБЛІКАЦІЇ:
@@ -795,7 +944,6 @@ def build_ai_prompt(project: Project) -> str:
 {project.article_text}
 --- END ARTICLE ---
 """.strip()
-
 
 def call_gemini(
     client: genai.Client,
@@ -880,19 +1028,35 @@ def validate_and_apply_ai(
     else:
         project.official_source_url = ""
 
-    project.official_date_evidence = clean(str(ai.get("official_date_evidence") or ""))
-    project.deadline_evidence = clean(str(ai.get("deadline_evidence") or ""))
-    project.contact_department = clean(str(ai.get("contact_department") or ""))
+    project.official_date_evidence = clean(
+        str(ai.get("official_date_evidence") or "")
+    )
+    project.deadline_evidence = clean(
+        str(ai.get("deadline_evidence") or "")
+    )
+    project.contact_department = clean(
+        str(ai.get("contact_department") or "")
+    )
     project.contact_person = clean(str(ai.get("contact_person") or ""))
-    project.contact_position = clean(str(ai.get("contact_position") or ""))
+    project.contact_position = clean(
+        str(ai.get("contact_position") or "")
+    )
     project.postal_address = clean(str(ai.get("postal_address") or ""))
-    project.submission_format = clean(str(ai.get("submission_format") or ""))
-    project.contacts_evidence = clean(str(ai.get("contacts_evidence") or ""))
-    project.summary = clean(str(ai.get("summary") or ""))[:900]
-    project.practical_impact = clean(str(ai.get("practical_impact") or ""))[:700]
-    project.affected_areas = unique(
-        [str(value) for value in (ai.get("affected_areas") or [])]
-    )[:5]
+    project.submission_format = clean(
+        str(ai.get("submission_format") or "")
+    )
+    project.contacts_evidence = clean(
+        str(ai.get("contacts_evidence") or "")
+    )
+
+    project.summary_paragraphs = unique(
+        [
+            clean(str(value))
+            for value in (ai.get("summary_paragraphs") or [])
+            if clean(str(value))
+        ]
+    )[:4]
+
     project.confidence = str(ai.get("confidence") or "LOW").upper()
     if project.confidence not in {"HIGH", "MEDIUM", "LOW"}:
         project.confidence = "LOW"
@@ -946,7 +1110,9 @@ def validate_and_apply_ai(
 
     if ai_deadline:
         project.deadline_date = ai_deadline.isoformat()
-        project.deadline_basis = ai_basis if ai_basis != "NOT_FOUND" else "EXPLICIT"
+        project.deadline_basis = (
+            ai_basis if ai_basis != "NOT_FOUND" else "EXPLICIT"
+        )
         project.deadline_source = "GEMINI_VALIDATED"
     elif fallback_deadline:
         project.deadline_date = fallback_deadline.isoformat()
@@ -962,55 +1128,82 @@ def validate_and_apply_ai(
         project.deadline_basis = "NOT_FOUND"
         project.deadline_source = "NOT_FOUND"
 
+    article_submission_text = submission_context(project.article_text).lower()
+    contacts_evidence_lower = project.contacts_evidence.lower()
+    evidence_ok = evidence_is_submission_related(project.contacts_evidence)
+
     accepted_emails = list(project.email_hints)
-    raw_article_lower = project.article_text.lower()
 
     for value in ai.get("emails") or []:
         candidate = clean(str(value)).lower()
-        if not EMAIL_RE.fullmatch(candidate):
+
+        if (
+            not EMAIL_RE.fullmatch(candidate)
+            or is_blocked_email(candidate)
+        ):
             continue
-        if candidate in raw_article_lower or candidate in {
+
+        present_in_submission_text = candidate in article_submission_text
+        present_in_valid_evidence = (
+            evidence_ok and candidate in contacts_evidence_lower
+        )
+        present_in_contextual_hints = candidate in {
             item.lower() for item in project.email_hints
-        }:
+        }
+
+        if (
+            present_in_submission_text
+            or present_in_valid_evidence
+            or present_in_contextual_hints
+        ):
             accepted_emails.append(candidate)
 
-    project.emails = unique(accepted_emails)
+    project.emails = [
+        email
+        for email in unique(accepted_emails)
+        if not is_blocked_email(email)
+    ][:3]
 
     accepted_phones = list(project.phone_hints)
-    article_digits = normalize_phone(project.article_text)
+    submission_digits = normalize_phone(submission_context(project.article_text))
+    evidence_digits = normalize_phone(project.contacts_evidence)
 
     for value in ai.get("phones") or []:
         candidate = clean(str(value))
         digits = normalize_phone(candidate)
-        if len(digits) >= 9 and digits in article_digits:
+
+        if len(digits) < 9:
+            continue
+
+        if digits in submission_digits or (evidence_ok and digits in evidence_digits):
             accepted_phones.append(candidate)
 
-    project.phones = unique(accepted_phones)
+    project.phones = unique(accepted_phones)[:3]
 
     deadline = parse_iso_date(project.deadline_date)
     if deadline:
         project.days_until_deadline = (deadline - as_of).days
 
-    if not project.summary:
-        project.summary = (
-            "Gemini не сформував summary. Перегляньте текст публікації за посиланням."
-        )
-        project.warnings.append("Порожній AI Summary.")
+    if len(project.summary_paragraphs) < 2:
+        project.summary_paragraphs = [
+            "AI Summary не вдалося сформувати у встановленому форматі.",
+            "Перегляньте текст проєкту та супровідні документи за посиланнями.",
+        ]
+        project.warnings.append("Некоректна структура AI Summary.")
 
     project.warnings = unique(project.warnings)
 
-
 def load_state() -> dict[str, Any]:
     if not STATE_PATH.exists():
-        return {"version": 1, "updated_at": "", "items": {}}
+        return {"version": 2, "updated_at": "", "items": {}}
 
     try:
         data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"version": 1, "updated_at": "", "items": {}}
+        return {"version": 2, "updated_at": "", "items": {}}
 
     if not isinstance(data, dict):
-        return {"version": 1, "updated_at": "", "items": {}}
+        return {"version": 2, "updated_at": "", "items": {}}
 
     if not isinstance(data.get("items"), dict):
         data["items"] = {}
@@ -1020,7 +1213,7 @@ def load_state() -> dict[str, Any]:
 
 def save_state(state: dict[str, Any]) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    state["version"] = 1
+    state["version"] = 2
     state["updated_at"] = datetime.now(TIMEZONE).isoformat()
     STATE_PATH.write_text(
         json.dumps(state, ensure_ascii=False, indent=2),
@@ -1028,10 +1221,38 @@ def save_state(state: dict[str, Any]) -> None:
     )
 
 
+def migrate_legacy_state(state: dict[str, Any]) -> int:
+    """
+    Старий state не мав notified_at. Матеріали з успішним AI-результатом
+    вважаються вже опрацьованими, щоб вони не потрапили в розсилку повторно.
+    Для перегляду їх можна використати PREVIEW_ALL=true.
+    """
+    migrated = 0
+    fallback_time = (
+        clean(str(state.get("updated_at") or ""))
+        or datetime.now(TIMEZONE).isoformat()
+    )
+
+    for item in state.get("items", {}).values():
+        if not isinstance(item, dict):
+            continue
+
+        if "notified_at" not in item and item.get("ai_status") == "OK":
+            item["notified_at"] = (
+                clean(str(item.get("cached_at") or ""))
+                or fallback_time
+            )
+            item["legacy_notified_migration"] = True
+            migrated += 1
+
+    return migrated
+
+
 def cache_to_project(project: Project, cache: dict[str, Any]) -> None:
     ai_fields = [
         "ai_status",
         "ai_model",
+        "ai_schema_version",
         "act_type",
         "developer",
         "official_source_url",
@@ -1050,12 +1271,11 @@ def cache_to_project(project: Project, cache: dict[str, Any]) -> None:
         "phones",
         "submission_format",
         "contacts_evidence",
-        "summary",
-        "practical_impact",
-        "affected_areas",
+        "summary_paragraphs",
         "confidence",
         "warnings",
         "days_until_deadline",
+        "notified_at",
     ]
 
     for field_name in ai_fields:
@@ -1068,9 +1288,9 @@ def cache_to_project(project: Project, cache: dict[str, Any]) -> None:
 def project_to_cache(project: Project) -> dict[str, Any]:
     payload = asdict(project)
     payload.pop("article_text", None)
+    payload["ai_schema_version"] = AI_SCHEMA_VERSION
     payload["cached_at"] = datetime.now(TIMEZONE).isoformat()
     return payload
-
 
 def scan_projects(
     session: requests.Session,
@@ -1151,8 +1371,17 @@ def scan_projects(
         if not article_text:
             continue
 
-        official_links, document_links = extract_links(soup)
-        email_hints = extract_email_hints(soup, html_text)
+        official_links, document_items = extract_links(soup)
+        document_links = [
+            item["url"]
+            for item in document_items
+            if item.get("url")
+        ]
+        email_hints = extract_email_hints(
+            soup,
+            html_text,
+            article_text,
+        )
         phone_hints = extract_phone_hints(article_text)
 
         content_hash = hashlib.sha256(
@@ -1176,6 +1405,7 @@ def scan_projects(
                 article_text=article_text,
                 content_hash=content_hash,
                 document_links=document_links,
+                document_items=document_items,
                 official_links=official_links,
                 email_hints=email_hints,
                 phone_hints=phone_hints,
@@ -1227,35 +1457,68 @@ def escape(value: object) -> str:
     return html.escape(str(value or "—"), quote=True)
 
 
+def normalized_for_compare(value: str) -> str:
+    return re.sub(r"[^а-яіїєґa-z0-9]+", "", clean(value).lower())
+
+
+def developer_is_redundant(project: Project) -> bool:
+    developer = normalized_for_compare(project.developer)
+    title = normalized_for_compare(project.title)
+
+    if not developer:
+        return True
+
+    if developer in title:
+        return True
+
+    moz_variants = {
+        "міністерствоохорониздоровяукраїни",
+        "міністерствоохорониздоровя",
+        "мозукраїни",
+        "моз",
+    }
+
+    return developer in moz_variants and (
+        "міністерствоохорониздоровя" in title
+        or "мозукраїни" in title
+    )
+
+
 def render_contacts(project: Project) -> str:
     lines: list[str] = []
 
     if project.contact_department:
         lines.append(
-            f"<div><strong>Підрозділ:</strong> {escape(project.contact_department)}</div>"
+            f"<div><strong>Підрозділ:</strong> "
+            f"{escape(project.contact_department)}</div>"
         )
 
-    person = " — ".join(
+    person = ", ".join(
         value
         for value in [project.contact_person, project.contact_position]
         if value
     )
     if person:
-        lines.append(f"<div><strong>Контакт:</strong> {escape(person)}</div>")
-
-    if project.postal_address:
         lines.append(
-            f"<div><strong>Адреса:</strong> {escape(project.postal_address)}</div>"
+            f"<div><strong>Контакт:</strong> {escape(person)}</div>"
         )
 
     if project.emails:
         lines.append(
-            f"<div><strong>Email:</strong> {escape(', '.join(project.emails))}</div>"
+            f"<div><strong>Email:</strong> "
+            f"{escape(', '.join(project.emails))}</div>"
         )
 
     if project.phones:
         lines.append(
-            f"<div><strong>Телефон:</strong> {escape(', '.join(project.phones))}</div>"
+            f"<div><strong>Телефон:</strong> "
+            f"{escape(', '.join(project.phones))}</div>"
+        )
+
+    if project.postal_address and not project.emails:
+        lines.append(
+            f"<div><strong>Адреса:</strong> "
+            f"{escape(project.postal_address)}</div>"
         )
 
     if project.submission_format:
@@ -1267,28 +1530,66 @@ def render_contacts(project: Project) -> str:
     return "".join(lines) or "—"
 
 
-def render_links(project: Project) -> str:
-    links = [
-        f'<div><a href="{escape(project.article_url)}">Публікація Apteka.ua</a></div>'
+def render_summary(project: Project) -> str:
+    paragraphs = project.summary_paragraphs or [
+        "AI Summary не сформовано.",
     ]
 
-    if project.official_source_url:
-        links.append(
-            f'<div><a href="{escape(project.official_source_url)}">'
-            "Офіційне джерело</a></div>"
+    return "".join(
+        f'<p style="margin:0 0 9px 0;">{escape(paragraph)}</p>'
+        for paragraph in paragraphs
+    )
+
+
+def render_project_links(project: Project) -> str:
+    links: list[tuple[str, str]] = [
+        ("Apteka.ua", project.article_url),
+    ]
+    seen_urls = {project.article_url}
+
+    if (
+        project.official_source_url
+        and project.official_source_url not in seen_urls
+    ):
+        links.append(("Офіційне джерело", project.official_source_url))
+        seen_urls.add(project.official_source_url)
+
+    for item in project.document_items:
+        url = clean(str(item.get("url") or ""))
+        label = clean(str(item.get("label") or "Документ"))
+
+        if not url or url in seen_urls:
+            continue
+
+        links.append((label, url))
+        seen_urls.add(url)
+
+        if len(links) >= 6:
+            break
+
+    rendered = " <span style=\"color:#9ca3af;\">·</span> ".join(
+        f'<a href="{escape(url)}">{escape(label)}</a>'
+        for label, url in links
+    )
+
+    return (
+        '<div style="margin-top:9px;font-size:12px;line-height:1.6;">'
+        + rendered
+        + "</div>"
+    )
+
+
+def publication_html(project: Project) -> str:
+    if project.official_publication_date:
+        return (
+            "<div><strong>Оприлюднено:</strong><br>"
+            f"{escape(uk_date(project.official_publication_date))}</div>"
         )
 
-    for index, url in enumerate(project.document_links[:5], start=1):
-        label = "Документ" if len(project.document_links) == 1 else f"Документ {index}"
-        links.append(f'<div><a href="{escape(url)}">{label}</a></div>')
-
-    if len(project.document_links) > 5:
-        links.append(
-            f'<div style="font-size:12px;color:#666;">'
-            f"Ще документів: {len(project.document_links) - 5}</div>"
-        )
-
-    return "".join(links)
+    return (
+        "<div><strong>Публікація Apteka.ua:</strong><br>"
+        f"{escape(uk_date(project.apteka_publication_date))}</div>"
+    )
 
 
 def build_html_report(
@@ -1299,68 +1600,42 @@ def build_html_report(
     rows: list[str] = []
 
     for project in projects:
-        areas = ""
-        if project.affected_areas:
-            areas = (
-                '<div style="margin-top:8px;font-size:12px;color:#1d4ed8;">'
-                + escape(" • ".join(project.affected_areas))
-                + "</div>"
+        developer_html = ""
+        if project.developer and not developer_is_redundant(project):
+            developer_html = (
+                '<div style="margin-top:8px;color:#555;">'
+                f"<strong>Розробник:</strong> {escape(project.developer)}"
+                "</div>"
             )
-
-        warnings = ""
-        if project.warnings:
-            warnings = (
-                '<div style="margin-top:8px;font-size:12px;color:#9a3412;">'
-                + escape("; ".join(project.warnings[:3]))
-                + "</div>"
-            )
-
-        source_note = (
-            '<div style="margin-top:6px;font-size:11px;color:#777;">'
-            f"AI: {escape(project.ai_model)}"
-            + (" · кеш" if project.ai_cached else "")
-            + "</div>"
-        )
 
         rows.append(
             f"""
 <tr>
   <td style="border:1px solid #d9d9d9;padding:10px;vertical-align:top;">
-    <div><strong>Apteka.ua:</strong> {escape(uk_date(project.apteka_publication_date))}</div>
-    <div><strong>Офіційно:</strong> {escape(uk_date(project.official_publication_date))}</div>
-    <div style="margin-top:8px;"><strong>Пропозиції до:</strong><br>{deadline_html(project)}</div>
+    {publication_html(project)}
+    <div style="margin-top:10px;">
+      <strong>Пропозиції до:</strong><br>
+      {deadline_html(project)}
+    </div>
   </td>
   <td style="border:1px solid #d9d9d9;padding:10px;vertical-align:top;">
     <div style="font-weight:600;">{escape(project.title)}</div>
-    <div style="margin-top:8px;color:#555;">
-      <strong>Розробник:</strong> {escape(project.developer)}
-    </div>
-    <div style="font-size:12px;color:#666;">
-      {escape(project.act_type)}
-    </div>
-    {warnings}
+    {developer_html}
+    {render_project_links(project)}
   </td>
   <td style="border:1px solid #d9d9d9;padding:10px;vertical-align:top;">
-    <div>{escape(project.summary)}</div>
-    <div style="margin-top:8px;">
-      <strong>Практичний вплив:</strong> {escape(project.practical_impact)}
-    </div>
-    {areas}
-    {source_note}
+    {render_summary(project)}
   </td>
   <td style="border:1px solid #d9d9d9;padding:10px;vertical-align:top;">
     {render_contacts(project)}
-  </td>
-  <td style="border:1px solid #d9d9d9;padding:10px;vertical-align:top;line-height:1.8;">
-    {render_links(project)}
   </td>
 </tr>
 """
         )
 
     body = "".join(rows) or (
-        '<tr><td colspan="5" style="border:1px solid #d9d9d9;padding:12px;">'
-        "Проєктів за період не знайдено.</td></tr>"
+        '<tr><td colspan="4" style="border:1px solid #d9d9d9;padding:12px;">'
+        "Нових публікацій проєктів за період не знайдено.</td></tr>"
     )
 
     return f"""<!doctype html>
@@ -1382,16 +1657,15 @@ def build_html_report(
   </p>
 
   <p style="margin:0 0 16px 0;">
-    Усього відібрано проєктів: <strong>{len(projects)}</strong>.
+    Нових публікацій: <strong>{len(projects)}</strong>.
   </p>
 
   <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;font-size:14px;">
     <colgroup>
       <col style="width:17%;">
-      <col style="width:24%;">
-      <col style="width:30%;">
-      <col style="width:19%;">
-      <col style="width:10%;">
+      <col style="width:28%;">
+      <col style="width:35%;">
+      <col style="width:20%;">
     </colgroup>
     <thead>
       <tr>
@@ -1402,13 +1676,10 @@ def build_html_report(
           Назва проєкту
         </th>
         <th style="text-align:left;border:1px solid #d9d9d9;background:#f3f4f6;padding:10px;vertical-align:top;">
-          AI Summary / практичний вплив
+          AI Summary ✨
         </th>
         <th style="text-align:left;border:1px solid #d9d9d9;background:#f3f4f6;padding:10px;vertical-align:top;">
           Подання пропозицій
-        </th>
-        <th style="text-align:left;border:1px solid #d9d9d9;background:#f3f4f6;padding:10px;vertical-align:top;">
-          Джерела
         </th>
       </tr>
     </thead>
@@ -1418,48 +1689,51 @@ def build_html_report(
   </table>
 
   <p style="font-size:12px;color:#666;margin:16px 0 0 0;">
-    Джерело виявлення: Apteka.ua. Дані AI перевіряються програмними правилами;
-    за відсутності валідної відповіді застосовується фолбек.
-  </p>
-  <p style="font-size:12px;color:#666;margin:4px 0 0 0;">
-    Звіт сформовано:
-    {datetime.now(TIMEZONE).strftime("%d.%m.%Y %H:%M:%S")}
+    Дайджест сформовано за публікаціями Apteka.ua за зазначений період
+    і він не є вичерпним переліком проєктів НПА, ініційованих, розроблених
+    або оприлюднених МОЗ та іншими державними органами. Перед поданням
+    пропозицій строки та реквізити слід звіряти з офіційним джерелом.
   </p>
 </div>
 </body>
 </html>
 """
 
-
 def build_markdown_report(
     projects: list[Project],
     start: date,
     as_of: date,
     page_stats: list[dict[str, Any]],
+    *,
+    scanned_total: int,
+    skipped_processed: int,
+    preview_all: bool,
 ) -> str:
     lines = [
         "# Моніторинг проєктів НПА у фармі",
         "",
-        f"- Період: **{start.strftime('%d.%m.%Y')}–{as_of.strftime('%d.%m.%Y')}**",
-        f"- Відібрано проєктів: **{len(projects)}**",
-        f"- Сторінок категорії перевірено: **{len(page_stats)}**",
-        f"- AI із кешу: **{sum(project.ai_cached for project in projects)}**",
-        f"- Нових AI-запитів: **{sum(not project.ai_cached for project in projects)}**",
+        f"- Період перевірки: **{start.strftime('%d.%m.%Y')}–{as_of.strftime('%d.%m.%Y')}**",
+        f"- Проєктних публікацій у 14-денному вікні: **{scanned_total}**",
+        f"- Уже опрацьовано раніше: **{skipped_processed}**",
+        f"- У поточному звіті: **{len(projects)}**",
+        f"- Режим попереднього перегляду: **{'так' if preview_all else 'ні'}**",
         "",
-        "## Проєкти",
+        "## Поточний звіт",
         "",
-        "| Apteka.ua | Офіційно | Строк | Назва | AI |",
-        "|---|---|---|---|---|",
+        "| Оприлюднено | Строк | Назва | AI |",
+        "|---|---|---|---|",
     ]
 
     for project in projects:
         lines.append(
-            f"| {uk_date(project.apteka_publication_date)} | "
-            f"{uk_date(project.official_publication_date)} | "
+            f"| {uk_date(project.official_publication_date or project.apteka_publication_date)} | "
             f"{uk_date(project.deadline_date)} | "
             f"[{project.title.replace('|', ' ')}]({project.article_url}) | "
             f"{project.ai_status}{' / cache' if project.ai_cached else ''} |"
         )
+
+    if not projects:
+        lines.append("| — | — | Нових публікацій немає | — |")
 
     lines.extend(
         [
@@ -1478,8 +1752,7 @@ def build_markdown_report(
         )
 
     lines.append("")
-    return "\n".join(lines)
-
+    return "\\n".join(lines)
 
 def split_recipients(value: str) -> list[str]:
     return unique(
@@ -1542,6 +1815,16 @@ def send_email(html_body: str, start: date, as_of: date) -> None:
             smtp.send_message(message)
 
 
+def project_sort_key(project: Project) -> tuple[date, date, str]:
+    deadline = parse_iso_date(project.deadline_date) or date.max
+    publication = (
+        parse_iso_date(project.official_publication_date)
+        or parse_iso_date(project.apteka_publication_date)
+        or date.max
+    )
+    return deadline, publication, project.title.lower()
+
+
 def main() -> int:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1557,19 +1840,22 @@ def main() -> int:
     lookback_days = int_env("LOOKBACK_DAYS", 14, 1, 90)
     max_pages = int_env("MAX_PAGES", 5, 1, 30)
     force_ai = bool_env("FORCE_AI", False)
+    preview_all = bool_env("PREVIEW_ALL", False)
     send_email_enabled = bool_env("SEND_EMAIL", False)
     model = (os.getenv("GEMINI_MODEL") or "gemini-3.1-flash-lite").strip()
     max_retries = int_env("GEMINI_MAX_RETRIES", 3, 1, 6)
     delay_seconds = float((os.getenv("GEMINI_DELAY_SECONDS") or "4").strip())
 
+    if preview_all and send_email_enabled:
+        raise RuntimeError(
+            "PREVIEW_ALL=true призначено лише для artifact-перегляду. "
+            "Вимкніть send_email."
+        )
+
     start = as_of - timedelta(days=max(lookback_days - 1, 0))
 
-    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    if not api_key:
-        raise RuntimeError("Не задано GitHub Secret GEMINI_API_KEY")
-
     session = make_session()
-    projects, page_stats = scan_projects(
+    scanned_projects, page_stats = scan_projects(
         session,
         start=start,
         as_of=as_of,
@@ -1578,9 +1864,33 @@ def main() -> int:
 
     state = load_state()
     state_items = state.setdefault("items", {})
-    client = genai.Client(api_key=api_key)
+    legacy_migrated = migrate_legacy_state(state)
 
-    for project in projects:
+    if preview_all:
+        report_projects = scanned_projects
+    else:
+        report_projects = [
+            project
+            for project in scanned_projects
+            if not clean(
+                str(
+                    state_items.get(project.article_id, {}).get(
+                        "notified_at",
+                        "",
+                    )
+                )
+            )
+        ]
+
+    skipped_processed = len(scanned_projects) - len(report_projects)
+
+    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    if report_projects and not api_key:
+        raise RuntimeError("Не задано GitHub Secret GEMINI_API_KEY")
+
+    client = genai.Client(api_key=api_key) if report_projects else None
+
+    for project in report_projects:
         old = state_items.get(project.article_id, {})
 
         can_reuse = (
@@ -1588,12 +1898,14 @@ def main() -> int:
             and old.get("content_hash") == project.content_hash
             and old.get("ai_model") == model
             and old.get("ai_status") == "OK"
+            and int(old.get("ai_schema_version") or 0) == AI_SCHEMA_VERSION
         )
 
         if can_reuse:
             cache_to_project(project, old)
             project.ai_status = "OK"
             project.ai_model = model
+            project.ai_schema_version = AI_SCHEMA_VERSION
 
             cached_deadline = parse_iso_date(project.deadline_date)
             project.days_until_deadline = (
@@ -1601,6 +1913,7 @@ def main() -> int:
             )
         else:
             try:
+                assert client is not None
                 ai_result = call_gemini(
                     client,
                     project,
@@ -1611,20 +1924,30 @@ def main() -> int:
                 validate_and_apply_ai(project, ai_result, as_of)
                 project.ai_status = "OK"
                 project.ai_model = model
+                project.ai_schema_version = AI_SCHEMA_VERSION
             except Exception as exc:
                 project.ai_status = "ERROR"
                 project.ai_model = model
-                project.warnings.append(f"Gemini error: {type(exc).__name__}: {exc}")
+                project.ai_schema_version = AI_SCHEMA_VERSION
+                project.warnings.append(
+                    f"Gemini error: {type(exc).__name__}: {exc}"
+                )
 
-                article_date = parse_iso_date(project.apteka_publication_date)
+                article_date = parse_iso_date(
+                    project.apteka_publication_date
+                )
                 if article_date:
                     fallback_official = deterministic_official_date(
                         project.article_text,
                         article_date,
                     )
-                    project.official_publication_date = iso(fallback_official)
+                    project.official_publication_date = iso(
+                        fallback_official
+                    )
                     project.official_date_source = (
-                        "REGEX_FALLBACK" if fallback_official else "NOT_FOUND"
+                        "REGEX_FALLBACK"
+                        if fallback_official
+                        else "NOT_FOUND"
                     )
 
                     fallback_deadline, fallback_basis, fallback_evidence = (
@@ -1636,29 +1959,62 @@ def main() -> int:
                     project.deadline_date = iso(fallback_deadline)
                     project.deadline_basis = fallback_basis
                     project.deadline_source = (
-                        "REGEX_FALLBACK" if fallback_deadline else "NOT_FOUND"
+                        "REGEX_FALLBACK"
+                        if fallback_deadline
+                        else "NOT_FOUND"
                     )
                     project.deadline_evidence = fallback_evidence
-                    project.emails = project.email_hints
-                    project.phones = project.phone_hints
+                    project.emails = [
+                        value
+                        for value in project.email_hints
+                        if not is_blocked_email(value)
+                    ][:3]
+                    project.phones = project.phone_hints[:3]
 
                     if fallback_deadline:
                         project.days_until_deadline = (
                             fallback_deadline - as_of
                         ).days
 
-                project.summary = (
-                    "AI Summary тимчасово не сформовано через помилку Gemini."
-                )
-                project.practical_impact = (
-                    "Перегляньте публікацію та документи за посиланнями."
-                )
+                project.summary_paragraphs = [
+                    "AI Summary тимчасово не сформовано через помилку обробки.",
+                    "Перегляньте текст проєкту та супровідні документи за посиланнями.",
+                ]
 
-        state_items[project.article_id] = project_to_cache(project)
+        previous_notified_at = clean(
+            str(old.get("notified_at") or "")
+        )
+        project.notified_at = previous_notified_at
 
+        cache = project_to_cache(project)
+        cache["notified_at"] = previous_notified_at
+        state_items[project.article_id] = cache
+
+    report_projects.sort(key=project_sort_key)
+
+    # Зберігаємо AI-кеш до спроби надсилання. Якщо SMTP впаде, наступний run
+    # повторно використає Gemini-результат, але проєкт залишиться ненадісланим.
     save_state(state)
 
-    html_report = build_html_report(projects, start, as_of)
+    html_report = build_html_report(report_projects, start, as_of)
+
+    email_sent = False
+    if send_email_enabled and report_projects:
+        send_email(html_report, start, as_of)
+        email_sent = True
+        notified_at = datetime.now(TIMEZONE).isoformat()
+
+        for project in report_projects:
+            project.notified_at = notified_at
+            state_items[project.article_id]["notified_at"] = notified_at
+
+        save_state(state)
+        print("Email надіслано.")
+    elif send_email_enabled:
+        print("Нових публікацій немає — email не надсилався.")
+    else:
+        print("SEND_EMAIL=false — створено лише звіт.")
+
     json_report = {
         "generated_at": datetime.now(TIMEZONE).isoformat(),
         "period": {
@@ -1667,15 +2023,32 @@ def main() -> int:
             "lookback_days": lookback_days,
         },
         "model": model,
+        "ai_schema_version": AI_SCHEMA_VERSION,
+        "preview_all": preview_all,
+        "email_sent": email_sent,
         "summary": {
-            "selected": len(projects),
-            "ai_cached": sum(project.ai_cached for project in projects),
-            "ai_new": sum(not project.ai_cached for project in projects),
-            "ai_errors": sum(project.ai_status != "OK" for project in projects),
-            "with_official_date": sum(
-                bool(project.official_publication_date) for project in projects
+            "scanned_projects": len(scanned_projects),
+            "skipped_processed": skipped_processed,
+            "selected_for_report": len(report_projects),
+            "legacy_state_migrated": legacy_migrated,
+            "ai_cached": sum(
+                project.ai_cached for project in report_projects
             ),
-            "with_deadline": sum(bool(project.deadline_date) for project in projects),
+            "ai_new": sum(
+                not project.ai_cached for project in report_projects
+            ),
+            "ai_errors": sum(
+                project.ai_status != "OK"
+                for project in report_projects
+            ),
+            "with_official_date": sum(
+                bool(project.official_publication_date)
+                for project in report_projects
+            ),
+            "with_deadline": sum(
+                bool(project.deadline_date)
+                for project in report_projects
+            ),
             "with_contacts": sum(
                 bool(
                     project.contact_person
@@ -1683,7 +2056,7 @@ def main() -> int:
                     or project.phones
                     or project.postal_address
                 )
-                for project in projects
+                for project in report_projects
             ),
         },
         "page_stats": page_stats,
@@ -1693,15 +2066,18 @@ def main() -> int:
                 for key, value in asdict(project).items()
                 if key != "article_text"
             }
-            for project in projects
+            for project in report_projects
         ],
     }
 
     markdown_report = build_markdown_report(
-        projects,
+        report_projects,
         start,
         as_of,
         page_stats,
+        scanned_total=len(scanned_projects),
+        skipped_processed=skipped_processed,
+        preview_all=preview_all,
     )
 
     (REPORT_DIR / "latest_apteka_projects.html").write_text(
@@ -1722,6 +2098,7 @@ def main() -> int:
                 "ok": True,
                 "generated_at": datetime.now(TIMEZONE).isoformat(),
                 "send_email_requested": send_email_enabled,
+                "email_sent": email_sent,
                 **json_report["summary"],
             },
             ensure_ascii=False,
@@ -1731,17 +2108,7 @@ def main() -> int:
     )
 
     print(json.dumps(json_report["summary"], ensure_ascii=False, indent=2))
-
-    if send_email_enabled and projects:
-        send_email(html_report, start, as_of)
-        print("Email надіслано.")
-    elif send_email_enabled:
-        print("Проєктів немає — email не надсилався.")
-    else:
-        print("SEND_EMAIL=false — створено лише звіт.")
-
     return 0
-
 
 if __name__ == "__main__":
     try:
