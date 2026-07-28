@@ -25,7 +25,12 @@ on:
         default: false
         type: boolean
       force_ai:
-        description: "Повторно запустити Gemini навіть для незмінених статей"
+        description: "Повторно запустити Gemini для матеріалів поточного звіту"
+        required: false
+        default: false
+        type: boolean
+      preview_all:
+        description: "Показати в artifact також уже опрацьовані проєкти; email буде заборонено"
         required: false
         default: false
         type: boolean
@@ -59,6 +64,7 @@ jobs:
       LOOKBACK_DAYS: ${{ inputs.lookback_days }}
       MAX_PAGES: ${{ inputs.max_pages }}
       FORCE_AI: ${{ inputs.force_ai }}
+      PREVIEW_ALL: ${{ inputs.preview_all }}
       SEND_EMAIL: ${{ github.event_name == 'schedule' || inputs.send_email }}
 
     steps:
