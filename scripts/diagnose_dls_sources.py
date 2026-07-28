@@ -13,8 +13,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin, urlparse, urlunparse
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.parse import quote, urljoin, urlparse, urlunparse
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 BASE = "https://www.dls.gov.ua"
 ARCHIVE_URL = f"{BASE}/projects_reg_acts/"
@@ -46,6 +46,41 @@ BROWSER_HEADERS = {
 
 ATTACHMENT_RE = re.compile(r"\.(?:pdf|docx?|rtf|xlsx?|zip)(?:$|[?#])", re.I)
 SPACE_RE = re.compile(r"\s+")
+
+
+def normalize_request_url(url: str) -> str:
+    """
+    Convert a browser-style URL into an ASCII-safe URL suitable for urllib.
+
+    The DLS pages sometimes contain attachment href values with literal
+    Cyrillic characters or spaces. Browsers encode them automatically,
+    while urllib/http.client requires an ASCII request target.
+    """
+    value = html.unescape((url or "").strip())
+    parsed = urlparse(value)
+
+    hostname = parsed.hostname or ""
+    try:
+        ascii_hostname = hostname.encode("idna").decode("ascii")
+    except UnicodeError:
+        ascii_hostname = hostname
+
+    netloc = ascii_hostname
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    if parsed.username:
+        userinfo = quote(parsed.username, safe="")
+        if parsed.password:
+            userinfo += ":" + quote(parsed.password, safe="")
+        netloc = f"{userinfo}@{netloc}"
+
+    # Keep existing percent escapes and standard URL delimiters intact.
+    path = quote(parsed.path, safe="/%:@!$&'()*+,;=-._~")
+    query = quote(parsed.query, safe="=&%:@/?+,;'-._~")
+
+    return urlunparse(
+        (parsed.scheme, netloc, path, parsed.params, query, "")
+    )
 
 
 class RecordingRedirectHandler(HTTPRedirectHandler):
@@ -167,12 +202,14 @@ def probe(
 ) -> ProbeResult:
     redirect_handler = RecordingRedirectHandler()
     context = ssl.create_default_context()
-    opener = build_opener(redirect_handler)
+    opener = build_opener(redirect_handler, HTTPSHandler(context=context))
+
+    request_url = normalize_request_url(url)
     headers = dict(BROWSER_HEADERS)
     if range_request:
         headers["Range"] = f"bytes=0-{max_bytes - 1}"
         headers["Accept"] = "*/*"
-    request = Request(url, headers=headers, method="GET")
+
     started = time.monotonic()
     status: int | None = None
     final_url: str | None = None
@@ -184,7 +221,8 @@ def probe(
     truncated = False
 
     try:
-        with opener.open(request, timeout=TIMEOUT_SECONDS, context=context) as response:  # type: ignore[arg-type]
+        request = Request(request_url, headers=headers, method="GET")
+        with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
             status = int(response.getcode())
             final_url = response.geturl()
             content_type = response.headers.get("Content-Type")
@@ -193,30 +231,6 @@ def probe(
             data = response.read(max_bytes + 1)
             truncated = len(data) > max_bytes
             data = data[:max_bytes]
-    except TypeError:
-        # Some Python builds do not accept context through opener.open().
-        try:
-            with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
-                status = int(response.getcode())
-                final_url = response.geturl()
-                content_type = response.headers.get("Content-Type")
-                content_length_header = response.headers.get("Content-Length")
-                server = response.headers.get("Server")
-                data = response.read(max_bytes + 1)
-                truncated = len(data) > max_bytes
-                data = data[:max_bytes]
-        except HTTPError as exc:
-            status = int(exc.code)
-            final_url = exc.geturl()
-            content_type = exc.headers.get("Content-Type") if exc.headers else None
-            content_length_header = exc.headers.get("Content-Length") if exc.headers else None
-            server = exc.headers.get("Server") if exc.headers else None
-            data = exc.read(max_bytes + 1)
-            truncated = len(data) > max_bytes
-            data = data[:max_bytes]
-            error = f"HTTPError: {exc}"
-        except (URLError, TimeoutError, OSError) as exc:
-            error = f"{type(exc).__name__}: {exc}"
     except HTTPError as exc:
         status = int(exc.code)
         final_url = exc.geturl()
@@ -227,17 +241,17 @@ def probe(
         truncated = len(data) > max_bytes
         data = data[:max_bytes]
         error = f"HTTPError: {exc}"
-    except (URLError, TimeoutError, OSError) as exc:
+    except (URLError, TimeoutError, OSError, UnicodeError, ValueError) as exc:
         error = f"{type(exc).__name__}: {exc}"
 
-    elapsed_ms = round((time.monotonic() - started) * 1000)
-    text = decode_bytes(data, content_type)
-    preview = normalize_text(text[:1000])
-    classification = classify(status, content_type, text, error)
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    text = decode_body(data, content_type)
+    preview = normalize_preview(text)
+    classification = classify_response(status, content_type, text, error)
 
     return ProbeResult(
         label=label,
-        requested_url=url,
+        requested_url=request_url,
         method="GET_RANGE" if range_request else "GET",
         status=status,
         final_url=final_url,
@@ -253,7 +267,6 @@ def probe(
         preview=preview,
         body_text=text if include_body_text else None,
     )
-
 
 def extract_links(page_url: str, html_text: str) -> list[dict[str, str]]:
     parser = LinkCollector()
