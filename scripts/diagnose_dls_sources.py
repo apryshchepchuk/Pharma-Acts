@@ -245,9 +245,9 @@ def probe(
         error = f"{type(exc).__name__}: {exc}"
 
     elapsed_ms = int((time.monotonic() - started) * 1000)
-    text = decode_body(data, content_type)
-    preview = normalize_preview(text)
-    classification = classify_response(status, content_type, text, error)
+    text = decode_bytes(data, content_type)
+    preview = normalize_text(text)
+    classification = classify(status, content_type, text, error)
 
     return ProbeResult(
         label=label,
