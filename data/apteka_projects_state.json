@@ -1,5 +1,204 @@
 {
   "version": 2,
-  "updated_at": "",
-  "items": {}
+  "updated_at": "2026-07-28T11:44:34.914986+03:00",
+  "items": {
+    "750360": {
+      "article_id": "750360",
+      "title": "Проєкт постанови КМУ «Про внесення змін до постанови Кабінету Міністрів України від 28 липня 2021 р. № 854»",
+      "article_url": "https://www.apteka.ua/article/750360/",
+      "apteka_publication_date": "2026-07-23",
+      "content_hash": "7d29a9e70fed4c0a57162be1fb5a7c65593fdf35e91e1d81be4d4f61e26aa33a",
+      "document_links": [
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/3.1-Finansovo-ekonomichni-rozrahunky.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/2-Porivnyalna-tablytsya-1.pdf"
+      ],
+      "document_items": [
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/3.1-Finansovo-ekonomichni-rozrahunky.pdf",
+          "label": "Фінансово-економічні розрахунки"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/2-Porivnyalna-tablytsya-1.pdf",
+          "label": "Порівняльна таблиця"
+        }
+      ],
+      "official_links": [],
+      "email_hints": [],
+      "phone_hints": [],
+      "ai_status": "OK",
+      "ai_model": "gemini-3.1-flash-lite",
+      "ai_schema_version": 2,
+      "ai_cached": false,
+      "act_type": "постанова КМУ",
+      "developer": "Міністерство охорони здоров’я України",
+      "official_source_url": "",
+      "official_publication_date": "2026-07-22",
+      "official_date_source": "GEMINI_VALIDATED",
+      "official_date_evidence": "Зауваження та пропозиції приймаються Департаментом медичних послуг 14 днів з дня оприлюдення (з 22.07.2026 по 05.08.2026)",
+      "deadline_date": "2026-08-05",
+      "deadline_basis": "EXPLICIT",
+      "deadline_source": "GEMINI_VALIDATED",
+      "deadline_evidence": "з 22.07.2026 по 05.08.2026",
+      "contact_department": "Департамент медичних послуг",
+      "contact_person": "Валерія Соручан",
+      "contact_position": "Директор Департаменту медичних послуг",
+      "postal_address": "Міністерство охорони здоров‘я України, 01601, м. Київ, вул. Грушевського, 7",
+      "emails": [],
+      "phones": [],
+      "submission_format": "у письмовому або електронному вигляді",
+      "contacts_evidence": "Зауваження та пропозиції приймаються Департаментом медичних послуг 14 днів з дня оприлюдення (з 22.07.2026 по 05.08.2026) у письмовому або електронному вигляді на адреси: Міністерство охорони здоров‘я України, 01601, м. Київ, вул. Грушевського,7; e-mail: [email protected], [email protected], [email protected].",
+      "summary_paragraphs": [
+        "Проєкт передбачає скасування обов’язкової 15-відсоткової доплати за препарати інсуліну, запроваджуючи універсальну гарантію безоплатного отримання щонайменше одного препарату в кожній із восьми визначених референтних груп.",
+        "Впроваджується нова модель кластерного реферування цін на інсуліни, де гранична оптово-відпускна ціна за міжнародну одиницю визначається на основі найнижчих цін у референтних країнах незалежно від торговельної назви чи лікарської форми.",
+        "Встановлюються чіткі клінічні критерії для призначення та продовження реімбурсації комбінованих лікарських засобів, що містять інсулін та агоністи рецепторів ГПП-1, з обов’язковою піврічною оцінкою ефективності лікування в електронній системі охорони здоров’я."
+      ],
+      "confidence": "HIGH",
+      "warnings": [],
+      "days_until_deadline": 8,
+      "notified_at": "2026-07-28T11:44:34.914896+03:00",
+      "cached_at": "2026-07-28T11:44:19.915991+03:00"
+    },
+    "750326": {
+      "article_id": "750326",
+      "title": "Проєкт наказу Міністерства охорони здоров’я України «Про затвердження Змін до Порядку ведення Переліку суб’єктів господарювання, що мають право на здійснення електронної роздрібної торгівлі лікарськими засобами»",
+      "article_url": "https://www.apteka.ua/article/750326/",
+      "apteka_publication_date": "2026-07-22",
+      "content_hash": "07fae84128b5259f673391630fe43a121c266e48830a4a5903132132b826a9a4",
+      "document_links": [],
+      "document_items": [],
+      "official_links": [
+        "https://moz.gov.ua/"
+      ],
+      "email_hints": [],
+      "phone_hints": [
+        "(044) 253-98-82"
+      ],
+      "ai_status": "OK",
+      "ai_model": "gemini-3.1-flash-lite",
+      "ai_schema_version": 2,
+      "ai_cached": false,
+      "act_type": "наказ МОЗ",
+      "developer": "Міністерство охорони здоров’я України",
+      "official_source_url": "https://moz.gov.ua/",
+      "official_publication_date": "2026-07-16",
+      "official_date_source": "GEMINI_VALIDATED",
+      "official_date_evidence": "опубліковано на сайті МОЗ 16.07.2026 р.",
+      "deadline_date": "2026-08-14",
+      "deadline_basis": "EXPLICIT",
+      "deadline_source": "GEMINI_VALIDATED",
+      "deadline_evidence": "із 16.07.2026 по 14.08.2026",
+      "contact_department": "Міністерство охорони здоров’я України",
+      "contact_person": "Сакута Марія Андріївна",
+      "contact_position": "заступник директора Департаменту — начальник відділу з впровадження електронних сервісів в охороні здоров’я Департаменту цифрових трансформацій та інновацій в охороні здоров’я",
+      "postal_address": "вул. Грушевського, 7, м. Київ, 01601",
+      "emails": [
+        "d.lukianov@moz.gov.ua"
+      ],
+      "phones": [
+        "(044) 253-98-82"
+      ],
+      "submission_format": "письмово або електронному вигляді у формі порівняльної таблиці",
+      "contacts_evidence": "надсилати протягом 30 днів з дати публікації (із 16.07.2026 по 14.08.2026) на адресу МОЗ України у письмовому або електронному вигляді у формі порівняльної таблиці за адресою: вул. Грушевського, 7, м. Київ, 01601, контактна особа: Сакута Марія Андріївна, заступник директора Департаменту — начальник відділу з впровадження електронних сервісів в охороні здоров’я Департаменту цифрових трансформацій та інновацій в охороні здоров’я, телефон: (044) 253-98-82, (e-mail: d.lukianov@moz.gov.ua).",
+      "summary_paragraphs": [
+        "Проєкт наказу передбачає заміну Державної служби України з лікарських засобів та контролю за наркотиками на Укрфармагентство як органу, відповідального за формування та ведення Переліку суб’єктів господарювання, що мають право на здійснення електронної роздрібної торгівлі лікарськими засобами.",
+        "Документ актуалізує перелік відомостей, що вносяться до Переліку, зокрема додаючи дані про дату початку діяльності, адресу вебсайту та електронну медичну інформаційну систему, що використовується для торгівлі.",
+        "Зміни уточнюють процедури внесення інформації до Переліку, її оновлення у разі зміни даних, а також порядок виключення суб’єктів господарювання у зв’язку з припиненням дії ліцензії."
+      ],
+      "confidence": "HIGH",
+      "warnings": [],
+      "days_until_deadline": 17,
+      "notified_at": "2026-07-28T11:44:34.914896+03:00",
+      "cached_at": "2026-07-28T11:44:26.716182+03:00"
+    },
+    "749895": {
+      "article_id": "749895",
+      "title": "Проєкт наказу Міністерства охорони здоров’я України «Про затвердження Правил виготовлення (виробництва) лікарських засобів в умовах аптеки»",
+      "article_url": "https://www.apteka.ua/article/749895/",
+      "apteka_publication_date": "2026-07-16",
+      "content_hash": "d8f75e714ba1e559c238b5a9baef2b424ca872955a6bca71ef6ba7f264fa3b87",
+      "document_links": [
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-1-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-2-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-3-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-4-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-5-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-6-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-7-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-8-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf"
+      ],
+      "document_items": [
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-1-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 1"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-2-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 2"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-3-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 3"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-4-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 4"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-5-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 5"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-6-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 6"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-7-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 7"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/07/Dodatok-8-do-Pravyl-vyrobnytstva-vygotovlennya-likarskyh.pdf",
+          "label": "Додаток 8"
+        }
+      ],
+      "official_links": [
+        "https://zakon.rada.gov.ua/rada/show/267-2015-%D0%BF#n785",
+        "https://zakon.rada.gov.ua/laws/show/z0552-05",
+        "https://zakon.rada.gov.ua/laws/show/v0062282-97"
+      ],
+      "email_hints": [],
+      "phone_hints": [],
+      "ai_status": "OK",
+      "ai_model": "gemini-3.1-flash-lite",
+      "ai_schema_version": 2,
+      "ai_cached": false,
+      "act_type": "наказ МОЗ",
+      "developer": "Міністерство охорони здоров’я України",
+      "official_source_url": "",
+      "official_publication_date": "2026-07-15",
+      "official_date_source": "GEMINI_VALIDATED",
+      "official_date_evidence": "Проєкт оприлюднений 15.07.2026 р. на сайті МОЗ України",
+      "deadline_date": "2026-08-14",
+      "deadline_basis": "CALCULATED",
+      "deadline_source": "GEMINI_VALIDATED",
+      "deadline_evidence": "Зауваження та пропозиції просимо надсилати протягом 30 днів починаючи з липня 2026 року",
+      "contact_department": "Міністерство охорони здоров’я України",
+      "contact_person": "",
+      "contact_position": "",
+      "postal_address": "м. Київ, 01601, вул. Грушевського 7",
+      "emails": [],
+      "phones": [],
+      "submission_format": "письмово або електронною поштою",
+      "contacts_evidence": "Зауваження та пропозиції просимо надсилати протягом 30 днів починаючи з липня 2026 року до Міністерства охорони здоров’я України за адресою: м. Київ, 01601, вул. Грушевського 7, адреса електронної пошти: [email protected] e-mail: [email protected], [email protected].",
+      "summary_paragraphs": [
+        "Проєкт наказу затверджує нові Правила виготовлення (виробництва) лікарських засобів в умовах аптеки, що замінюють чинний наказ МОЗ № 812 від 2012 року. Документ встановлює вимоги до організації виробничих процесів, контролю якості, умов зберігання та маркування екстемпоральних лікарських засобів.",
+        "Впроваджуються спеціальні вимоги до виготовлення лікарських засобів із рослинної субстанції канабісу, включаючи обов'язкове внесення даних до електронної інформаційної системи обліку. Також регламентуються особливості виробництва радіофармацевтичних препаратів та використання асептичних умов для дитячих лікарських форм.",
+        "Документ визначає обов'язкові види внутрішньоаптечного контролю якості, включаючи письмовий, опитувальний, органолептичний, фізичний та хімічний методи. Встановлюються вимоги до ведення відповідної документації, журналів обліку та маркування готової продукції залежно від способу її застосування."
+      ],
+      "confidence": "HIGH",
+      "warnings": [],
+      "days_until_deadline": 17,
+      "notified_at": "2026-07-28T11:44:34.914896+03:00",
+      "cached_at": "2026-07-28T11:44:33.393688+03:00"
+    }
+  }
 }
