@@ -2,7 +2,8 @@ name: Pharma Draft Acts Monitor
 
 on:
   schedule:
-    # Щонеділі о 06:00 UTC: 09:00 у Києві влітку, 08:00 взимку.
+    # Щонеділі о 06:00 UTC:
+    # 09:00 у Києві влітку, 08:00 взимку.
     - cron: "0 6 * * 0"
 
   workflow_dispatch:
@@ -11,24 +12,29 @@ on:
         description: "Дата перевірки YYYY-MM-DD; порожньо = поточна дата Europe/Kyiv"
         required: false
         default: ""
+
       lookback_days:
         description: "Кількість календарних днів у звіті"
         required: false
         default: "14"
+
       max_pages:
         description: "Максимум сторінок категорії МОЗ"
         required: false
         default: "5"
+
       send_email:
         description: "Надіслати email"
         required: false
         default: false
         type: boolean
+
       force_ai:
         description: "Повторно запустити Gemini для матеріалів поточного звіту"
         required: false
         default: false
         type: boolean
+
       preview_all:
         description: "Показати в artifact також уже опрацьовані проєкти; email буде заборонено"
         required: false
@@ -49,6 +55,7 @@ jobs:
 
     env:
       TZ: Europe/Kyiv
+
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-3.1-flash-lite
 
@@ -56,6 +63,7 @@ jobs:
       SMTP_PORT: ${{ vars.SMTP_PORT }}
       SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
       EMAIL_FROM_NAME: ${{ vars.EMAIL_FROM_NAME }}
       EMAIL_SUBJECT_PREFIX: ${{ vars.EMAIL_SUBJECT_PREFIX }}
@@ -65,6 +73,9 @@ jobs:
       MAX_PAGES: ${{ inputs.max_pages }}
       FORCE_AI: ${{ inputs.force_ai }}
       PREVIEW_ALL: ${{ inputs.preview_all }}
+
+      # Для планового запуску email надсилається автоматично.
+      # Для ручного запуску використовується значення input send_email.
       SEND_EMAIL: ${{ github.event_name == 'schedule' || inputs.send_email }}
 
     steps:
@@ -95,6 +106,7 @@ jobs:
             cat reports/latest_apteka_projects.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "## Моніторинг проєктів НПА" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "Звіт не створено. Перегляньте лог кроку Run monitor." >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -111,22 +123,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Commit state and latest report
+      - name: Commit monitor state
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add \
-            data/apteka_projects_state.json \
-            reports/latest_apteka_projects.html \
-            reports/latest_apteka_projects.json \
-            reports/latest_apteka_projects.md \
-            reports/monitor_run.json || true
+          # У репозиторії зберігається тільки стан моніторингу.
+          # Тимчасові файли reports/* не додаються до commit.
+          git add -- data/apteka_projects_state.json
 
           if git diff --cached --quiet; then
-            echo "Немає змін для commit."
-          else
-            git commit -m "Update pharma draft acts monitor"
-            git push
+            echo "Немає змін state для commit."
+            exit 0
           fi
+
+          git commit -m "Update pharma draft acts state"
+          git push
