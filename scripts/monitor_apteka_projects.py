@@ -32,7 +32,7 @@ STATE_PATH = Path("data/apteka_projects_state.json")
 REPORT_DIR = Path("reports")
 MAX_ARTICLE_TEXT_CHARS = 180_000
 MAX_PROJECTS_PER_RUN = 30
-AI_SCHEMA_VERSION = 2
+AI_SCHEMA_VERSION = 3
 
 BLOCKED_EMAIL_DOMAINS = {
     "morion.ua",
@@ -660,89 +660,191 @@ def decode_cfemail(encoded: str) -> str:
         return ""
 
 
+def split_email_values(value: str) -> list[str]:
+    return [
+        clean(part).lower()
+        for part in re.split(r"[,;]", value or "")
+        if clean(part)
+    ]
+
+
+def emails_from_html_tag(tag: Tag) -> list[str]:
+    """
+    Decode email values carried by one HTML element.
+
+    Supports ordinary mailto links and Cloudflare email protection. The
+    decoded address does not need to be repeated literally in visible text.
+    """
+    values: list[str] = []
+
+    href = html.unescape(str(tag.get("href") or ""))
+    lower_href = href.lower()
+
+    if lower_href.startswith("mailto:"):
+        address = unquote(href[7:]).split("?", 1)[0]
+        values.extend(split_email_values(address))
+
+    if "/cdn-cgi/l/email-protection#" in lower_href:
+        decoded = decode_cfemail(href.rsplit("#", 1)[-1])
+        if decoded:
+            values.extend(split_email_values(decoded))
+
+    encoded = clean(str(tag.get("data-cfemail") or ""))
+    if encoded:
+        decoded = decode_cfemail(encoded)
+        if decoded:
+            values.extend(split_email_values(decoded))
+
+    return unique(values)
+
+
+def valid_submission_email(value: str) -> str:
+    candidate = clean(value).lower()
+
+    if not candidate or candidate == "email@example.com":
+        return ""
+
+    if not EMAIL_RE.fullmatch(candidate):
+        return ""
+
+    if is_blocked_email(candidate):
+        return ""
+
+    return candidate
+
+
+def collect_emails_from_subtree(tag: Tag) -> list[str]:
+    """
+    Extract all valid emails from a small DOM subtree.
+
+    This is used only for blocks already confirmed as submission-related.
+    """
+    found: list[str] = []
+
+    for current in tag.find_all(True):
+        found.extend(emails_from_html_tag(current))
+
+    visible_text = clean(tag.get_text(" ", strip=True))
+    found.extend(EMAIL_RE.findall(visible_text))
+
+    raw_fragment = html.unescape(str(tag))
+    found.extend(EMAIL_RE.findall(raw_fragment))
+
+    return unique(
+        candidate
+        for value in found
+        if (candidate := valid_submission_email(value))
+    )
+
+
+def nearest_submission_ancestor(tag: Tag) -> Tag | None:
+    """
+    Return the smallest reasonably-sized ancestor that contains a submission
+    marker. It may include adjacent email elements hidden by Cloudflare.
+    """
+    current: Tag | None = tag
+
+    for _ in range(7):
+        if not isinstance(current, Tag):
+            break
+
+        text = clean(current.get_text(" ", strip=True))
+
+        if (
+            evidence_is_submission_related(text)
+            and 20 <= len(text) <= 8_000
+            and current.name not in {"html", "body"}
+        ):
+            return current
+
+        parent = current.parent
+        current = parent if isinstance(parent, Tag) else None
+
+    return None
+
+
 def extract_email_hints(
     soup: BeautifulSoup,
     raw_html: str,
     article_text: str,
 ) -> list[str]:
-    candidates: dict[str, list[str]] = {}
-    article_submission_text = submission_context(article_text).lower()
+    """
+    Extract addresses specifically intended for submitting proposals.
 
-    def add_candidate(value: str, context: str = "") -> None:
-        candidate = clean(value).lower()
-        if not EMAIL_RE.fullmatch(candidate):
-            return
-        if candidate == "email@example.com" or is_blocked_email(candidate):
-            return
-        candidates.setdefault(candidate, []).append(clean(context))
+    Main logic:
+    1. Find a phrase about proposals/remarks in the DOM.
+    2. Inspect its smallest contextual ancestor.
+    3. Inspect the following DOM elements for a limited text window.
+    4. Accept decoded Cloudflare addresses found in that contextual window
+       without requiring their literal representation in article_text.
+    5. Always exclude editorial domains such as morion.ua and apteka.ua.
+    """
+    accepted: list[str] = []
+    marker_nodes = soup.find_all(
+        string=lambda value: bool(
+            value and SUBMISSION_CONTEXT_RE.search(clean(str(value)))
+        )
+    )
 
-    for link in soup.find_all("a", href=True):
-        href = html.unescape(str(link.get("href") or ""))
-        lower = href.lower()
-        values: list[str] = []
+    for marker_node in marker_nodes:
+        parent = marker_node.parent
+        if not isinstance(parent, Tag):
+            continue
 
-        if lower.startswith("mailto:"):
-            address = unquote(href[7:]).split("?", 1)[0].strip()
-            values.extend(
-                part.strip()
-                for part in re.split(r"[,;]", address)
-                if part.strip()
+        contextual_ancestor = nearest_submission_ancestor(parent)
+        if contextual_ancestor is not None:
+            accepted.extend(collect_emails_from_subtree(contextual_ancestor))
+
+        # Read forward from the marker because Apteka.ua may place the emails
+        # in the next paragraph or in a sibling Cloudflare-protected span.
+        text_chars = 0
+        visited_tags: set[int] = set()
+
+        for element in marker_node.next_elements:
+            if element is marker_node:
+                continue
+
+            if isinstance(element, Tag):
+                if (
+                    element.name in {"h1", "h2", "h3", "h4", "h5", "h6"}
+                    and text_chars > 100
+                ):
+                    break
+
+                element_id = id(element)
+                if element_id not in visited_tags:
+                    visited_tags.add(element_id)
+                    accepted.extend(
+                        valid
+                        for value in emails_from_html_tag(element)
+                        if (valid := valid_submission_email(value))
+                    )
+                continue
+
+            fragment = clean(str(element))
+            if not fragment:
+                continue
+
+            text_chars += len(fragment) + 1
+            accepted.extend(
+                valid
+                for value in EMAIL_RE.findall(fragment)
+                if (valid := valid_submission_email(value))
             )
 
-        if "/cdn-cgi/l/email-protection#" in lower:
-            decoded = decode_cfemail(href.rsplit("#", 1)[-1])
-            if decoded:
-                values.append(decoded)
-
-        if not values:
-            continue
-
-        context_parts: list[str] = []
-        current: Tag | None = link
-        for _ in range(4):
-            parent = current.parent if current else None
-            if not isinstance(parent, Tag):
+            if text_chars >= 8_000:
                 break
-            context_parts.append(clean(parent.get_text(" ", strip=True)))
-            current = parent
 
-        context = clean(" ".join(context_parts))
-        for value in values:
-            add_candidate(value, context)
+    # Fallback for ordinary visible emails: use the already cleaned submission
+    # context. This does not recover Cloudflare addresses, but covers plain text.
+    visible_submission_text = submission_context(article_text)
+    accepted.extend(
+        valid
+        for value in EMAIL_RE.findall(visible_submission_text)
+        if (valid := valid_submission_email(value))
+    )
 
-    for tag in soup.find_all(attrs={"data-cfemail": True}):
-        decoded = decode_cfemail(str(tag.get("data-cfemail") or ""))
-        if not decoded:
-            continue
-
-        context_parts: list[str] = []
-        current: Tag | None = tag
-        for _ in range(4):
-            parent = current.parent if current else None
-            if not isinstance(parent, Tag):
-                break
-            context_parts.append(clean(parent.get_text(" ", strip=True)))
-            current = parent
-
-        add_candidate(decoded, clean(" ".join(context_parts)))
-
-    for candidate in EMAIL_RE.findall(html.unescape(raw_html)):
-        add_candidate(candidate, "")
-
-    accepted: list[str] = []
-
-    for candidate, contexts in candidates.items():
-        in_article_submission_block = candidate in article_submission_text
-        in_dom_submission_block = any(
-            candidate in context.lower()
-            and evidence_is_submission_related(context)
-            for context in contexts
-        )
-
-        if in_article_submission_block or in_dom_submission_block:
-            accepted.append(candidate)
-
-    return unique(accepted)[:3]
+    return unique(accepted)[:5]
 
 def extract_phone_hints(text: str) -> list[str]:
     return unique(PHONE_RE.findall(submission_context(text)))[:3]
@@ -924,6 +1026,11 @@ def build_ai_prompt(project: Project) -> str:
 - Заборонено включати адреси доменів @morion.ua та @apteka.ua.
 - Загальну адресу органу включай лише тоді, коли вона прямо зазначена
   як адреса для подання пропозицій.
+- Поле submission_email_hints містить адреси, програмно декодовані саме
+  поблизу блоку подання пропозицій. Не відкидай їх лише тому, що видимий
+  текст сторінки містить маску [email protected].
+- Поверни всі submission_email_hints, які належать до одного блоку подання,
+  крім заборонених редакційних доменів.
 - Не вигадуй контакти.
 
 ПРАВИЛА ДЛЯ AI SUMMARY:
@@ -1132,37 +1239,38 @@ def validate_and_apply_ai(
     contacts_evidence_lower = project.contacts_evidence.lower()
     evidence_ok = evidence_is_submission_related(project.contacts_evidence)
 
-    accepted_emails = list(project.email_hints)
+    # Contextually decoded HTML addresses are trusted candidates. In
+    # particular, Cloudflare-protected addresses need not appear literally in
+    # article_text after extraction.
+    accepted_emails = [
+        candidate
+        for value in project.email_hints
+        if (candidate := valid_submission_email(value))
+    ]
+    contextual_hint_set = {value.lower() for value in accepted_emails}
 
     for value in ai.get("emails") or []:
-        candidate = clean(str(value)).lower()
-
-        if (
-            not EMAIL_RE.fullmatch(candidate)
-            or is_blocked_email(candidate)
-        ):
+        candidate = valid_submission_email(str(value))
+        if not candidate:
             continue
 
+        present_in_contextual_hints = candidate in contextual_hint_set
         present_in_submission_text = candidate in article_submission_text
         present_in_valid_evidence = (
             evidence_ok and candidate in contacts_evidence_lower
         )
-        present_in_contextual_hints = candidate in {
-            item.lower() for item in project.email_hints
-        }
 
         if (
-            present_in_submission_text
+            present_in_contextual_hints
+            or present_in_submission_text
             or present_in_valid_evidence
-            or present_in_contextual_hints
         ):
             accepted_emails.append(candidate)
 
-    project.emails = [
-        email
-        for email in unique(accepted_emails)
-        if not is_blocked_email(email)
-    ][:3]
+    # If Gemini omitted an address, preserve every address decoded directly
+    # from the submission block. Gemini ranks/structures the contacts but does
+    # not override reliable DOM extraction.
+    project.emails = unique(accepted_emails)[:5]
 
     accepted_phones = list(project.phone_hints)
     submission_digits = normalize_phone(submission_context(project.article_text))
@@ -1484,10 +1592,49 @@ def developer_is_redundant(project: Project) -> bool:
     )
 
 
+def generic_contact_department(project: Project) -> bool:
+    department = normalized_for_compare(project.contact_department)
+    developer = normalized_for_compare(project.developer)
+
+    if not department:
+        return True
+
+    if developer and department == developer:
+        return True
+
+    generic_values = {
+        "міністерствоохорониздоровяукраїни",
+        "міністерствоохорониздоровя",
+        "мозукраїни",
+        "моз",
+    }
+    return department in generic_values
+
+
+def normalize_submission_format(value: str) -> str:
+    result = clean(value)
+    if not result:
+        return ""
+
+    result = re.sub(
+        r"^письмово\s+або\s+електронному\s+вигляді",
+        "у письмовому або електронному вигляді",
+        result,
+        flags=re.IGNORECASE,
+    )
+    result = re.sub(
+        r"^письмово\s+або\s+електронною\s+поштою",
+        "у письмовому вигляді або електронною поштою",
+        result,
+        flags=re.IGNORECASE,
+    )
+    return result
+
+
 def render_contacts(project: Project) -> str:
     lines: list[str] = []
 
-    if project.contact_department:
+    if project.contact_department and not generic_contact_department(project):
         lines.append(
             f"<div><strong>Підрозділ:</strong> "
             f"{escape(project.contact_department)}</div>"
@@ -1504,10 +1651,18 @@ def render_contacts(project: Project) -> str:
         )
 
     if project.emails:
-        lines.append(
-            f"<div><strong>Email:</strong> "
-            f"{escape(', '.join(project.emails))}</div>"
+        email_lines = "".join(
+            '<div style="margin-top:2px;">'
+            f'<a href="mailto:{escape(email)}">{escape(email)}</a>'
+            "</div>"
+            for email in project.emails
+            if valid_submission_email(email)
         )
+        if email_lines:
+            lines.append(
+                '<div style="margin-top:6px;"><strong>Email:</strong>'
+                f"{email_lines}</div>"
+            )
 
     if project.phones:
         lines.append(
@@ -1521,14 +1676,14 @@ def render_contacts(project: Project) -> str:
             f"{escape(project.postal_address)}</div>"
         )
 
-    if project.submission_format:
+    normalized_format = normalize_submission_format(project.submission_format)
+    if normalized_format:
         lines.append(
             f'<div style="margin-top:6px;"><strong>Форма:</strong> '
-            f"{escape(project.submission_format)}</div>"
+            f"{escape(normalized_format)}</div>"
         )
 
     return "".join(lines) or "—"
-
 
 def render_summary(project: Project) -> str:
     paragraphs = project.summary_paragraphs or [
