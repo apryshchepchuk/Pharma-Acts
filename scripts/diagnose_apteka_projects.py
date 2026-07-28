@@ -235,20 +235,101 @@ def article_id(url: str) -> str:
     return match.group(1) if match else ""
 
 
-def card_text(link: Tag) -> str:
-    current: Tag | None = link
-    best = clean(link.get_text(" ", strip=True))
-    for _ in range(8):
+def category_date_after_title(link: Tag) -> tuple[date | None, str]:
+    """
+    Read the category publication date only from nodes that follow the article
+    heading. Dates inside the title itself must never be treated as publication
+    dates.
+    """
+    heading = link.find_parent(["h1", "h2", "h3", "h4", "h5", "h6"])
+
+    start_nodes: list[Tag] = []
+    if isinstance(heading, Tag):
+        start_nodes.append(heading)
+        if isinstance(heading.parent, Tag):
+            start_nodes.append(heading.parent)
+    elif isinstance(link.parent, Tag):
+        start_nodes.append(link.parent)
+
+    checked: set[int] = set()
+
+    for start_node in start_nodes:
+        if id(start_node) in checked:
+            continue
+        checked.add(id(start_node))
+
+        collected: list[str] = []
+        char_count = 0
+        sibling_count = 0
+
+        for sibling in start_node.next_siblings:
+            sibling_count += 1
+            if sibling_count > 12:
+                break
+
+            if isinstance(sibling, Tag):
+                # Stop at the next article heading/card.
+                if sibling.name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+                    other = sibling.find("a", href=True)
+                    if other:
+                        other_url = urljoin(BASE, other.get("href", ""))
+                        if ARTICLE_RE.match(other_url.rstrip("/") + "/"):
+                            break
+
+                other = sibling.find("a", href=True)
+                if other:
+                    other_url = urljoin(BASE, other.get("href", ""))
+                    if ARTICLE_RE.match(other_url.rstrip("/") + "/"):
+                        break
+
+                time_tag = sibling if sibling.name == "time" else sibling.find("time")
+                if isinstance(time_tag, Tag):
+                    raw = str(time_tag.get("datetime") or time_tag.get_text(" ", strip=True))
+                    parsed = iso_date(raw[:10]) or ua_date(raw)
+                    if parsed:
+                        return parsed, clean(raw)
+
+                value = clean(sibling.get_text(" ", strip=True))
+            else:
+                value = clean(str(sibling))
+
+            if not value:
+                continue
+
+            collected.append(value)
+            char_count += len(value) + 1
+            combined = clean(" ".join(collected))
+            parsed = ua_date(combined)
+            if parsed:
+                return parsed, combined[:500]
+
+            if char_count >= 700:
+                break
+
+    # Conservative fallback: remove the exact normalized title from a compact
+    # parent container before looking for a date.
+    title = clean(link.get_text(" ", strip=True))
+    current: Tag | None = heading if isinstance(heading, Tag) else link
+    for _ in range(5):
         parent = current.parent if current else None
         if not isinstance(parent, Tag):
             break
-        text = clean(parent.get_text(" ", strip=True))
-        if len(text) > len(best):
-            best = text
-        if ua_date(text) and len(text) <= 1800:
-            return text
+        parent_text = clean(parent.get_text(" ", strip=True))
+        if len(parent_text) > 1800:
+            current = parent
+            continue
+
+        if parent_text.startswith(title):
+            without_title = clean(parent_text[len(title):])
+        else:
+            without_title = clean(parent_text.replace(title, "", 1))
+
+        parsed = ua_date(without_title)
+        if parsed:
+            return parsed, without_title[:500]
         current = parent
-    return best
+
+    return None, ""
 
 
 def parse_category(page_html: str) -> list[dict]:
@@ -261,13 +342,15 @@ def parse_category(page_html: str) -> list[dict]:
         title = clean(link.get_text(" ", strip=True))
         if not title:
             continue
-        text = card_text(link)
-        published = ua_date(text)
+
+        published, date_context = category_date_after_title(link)
+
         results.append({
             "article_id": article_id(absolute),
             "title": title,
             "url": absolute,
             "card_date": iso(published),
+            "card_date_context": date_context,
             "title_is_project": bool(PROJECT_TITLE_RE.search(title)),
         })
         seen.add(absolute)
@@ -307,23 +390,47 @@ def content_root(soup: BeautifulSoup) -> Tag:
 
 
 def article_pub_date(soup: BeautifulSoup, root_text: str) -> date | None:
+    # Primary and reliable source on Apteka.ua.
     for tag in soup.find_all("time"):
         raw = str(tag.get("datetime") or tag.get_text(" ", strip=True))
         parsed = iso_date(raw[:10]) or ua_date(raw)
         if parsed:
             return parsed
+
+    # Fallback: inspect text after h1, never the title itself.
     h1 = soup.find("h1")
     if isinstance(h1, Tag):
+        collected: list[str] = []
+        for node in h1.next_elements:
+            if node is h1:
+                continue
+            if isinstance(node, Tag) and node.name == "h1":
+                break
+            if isinstance(node, str):
+                value = clean(node)
+                if not value:
+                    continue
+                collected.append(value)
+                combined = clean(" ".join(collected))
+                parsed = ua_date(combined)
+                if parsed:
+                    return parsed
+                if len(combined) >= 700:
+                    break
+
+        title = clean(h1.get_text(" ", strip=True))
         current: Tag | None = h1
         for _ in range(5):
             parent = current.parent if current else None
             if not isinstance(parent, Tag):
                 break
-            parsed = ua_date(clean(parent.get_text(" ", strip=True)))
+            parent_text = clean(parent.get_text(" ", strip=True))
+            parsed = ua_date(clean(parent_text.replace(title, "", 1)))
             if parsed:
                 return parsed
             current = parent
-    return ua_date(root_text[:1500])
+
+    return None
 
 
 def official_candidates(text: str) -> list[date]:
@@ -647,17 +754,26 @@ def main() -> int:
             candidates.setdefault(item["url"], item)
         if not parsed:
             break
+
+        # Do not stop early by a date extracted from a category card.
+        # A title may itself contain an old legal-act date. The authoritative
+        # Apteka.ua publication date is verified later on the article page.
         if dates and dates[0] < start:
             reached_old = True
-            break
 
-    candidate_list = sorted(candidates.values(), key=lambda item: item.get("card_date") or "", reverse=True)
-    details = []
-    for candidate in candidate_list:
-        card = iso_date(candidate.get("card_date"))
-        if candidate.get("title_is_project") and (card is None or card >= start - timedelta(days=7)):
-            details.append(candidate)
-    details = details[:60]
+    candidate_list = sorted(
+        candidates.values(),
+        key=lambda item: item.get("card_date") or "",
+        reverse=True,
+    )
+
+    # Open all project-titled articles from the checked pages. Filtering by the
+    # 14-day window happens only after reading the article's own <time> value.
+    details = [
+        candidate
+        for candidate in candidate_list
+        if candidate.get("title_is_project")
+    ][:60]
 
     articles = [analyze(session, candidate, as_of, start, basis, probes) for candidate in details]
     opened = {item.article_url for item in articles}
@@ -684,6 +800,9 @@ def main() -> int:
         },
         "summary": {
             "category_articles": len(candidate_list),
+            "project_titles_found": sum(
+                1 for item in candidate_list if item.get("title_is_project")
+            ),
             "detailed_articles": len(opened),
             "selected": len(selected),
             "selected_with_deadline": sum(1 for item in selected if item.deadline_date),
