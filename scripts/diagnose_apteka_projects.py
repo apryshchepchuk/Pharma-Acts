@@ -390,45 +390,109 @@ def content_root(soup: BeautifulSoup) -> Tag:
 
 
 def article_pub_date(soup: BeautifulSoup, root_text: str) -> date | None:
-    # Primary and reliable source on Apteka.ua.
+    """
+    Extract the Apteka.ua publication date without reading historical dates
+    contained in the legal-act title.
+
+    Reliable sources are used first. A textual fallback searches only content
+    located after the h1 block. When no reliable date is found, None is
+    returned so the already parsed category date remains unchanged.
+    """
+
+    # 1. Open Graph / schema metadata.
+    meta_selectors = [
+        'meta[property="article:published_time"]',
+        'meta[name="article:published_time"]',
+        'meta[itemprop="datePublished"]',
+        'meta[name="date"]',
+    ]
+    for selector in meta_selectors:
+        tag = soup.select_one(selector)
+        if not isinstance(tag, Tag):
+            continue
+        raw = str(tag.get("content") or "").strip()
+        parsed = iso_date(raw[:10]) or ua_date(raw)
+        if parsed:
+            return parsed
+
+    # 2. JSON-LD datePublished.
+    for script_tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = script_tag.string or script_tag.get_text(" ", strip=True)
+        if not raw:
+            continue
+        match = re.search(
+            r'"datePublished"\s*:\s*"([^"]+)"',
+            raw,
+            re.IGNORECASE,
+        )
+        if match:
+            value = match.group(1)
+            parsed = iso_date(value[:10]) or ua_date(value)
+            if parsed:
+                return parsed
+
+    # 3. Explicit HTML time elements.
     for tag in soup.find_all("time"):
         raw = str(tag.get("datetime") or tag.get_text(" ", strip=True))
         parsed = iso_date(raw[:10]) or ua_date(raw)
         if parsed:
             return parsed
 
-    # Fallback: inspect text after h1, never the title itself.
     h1 = soup.find("h1")
-    if isinstance(h1, Tag):
-        collected: list[str] = []
-        for node in h1.next_elements:
-            if node is h1:
-                continue
-            if isinstance(node, Tag) and node.name == "h1":
-                break
-            if isinstance(node, str):
-                value = clean(node)
-                if not value:
-                    continue
-                collected.append(value)
-                combined = clean(" ".join(collected))
-                parsed = ua_date(combined)
-                if parsed:
-                    return parsed
-                if len(combined) >= 700:
-                    break
+    if not isinstance(h1, Tag):
+        return None
 
-        title = clean(h1.get_text(" ", strip=True))
-        current: Tag | None = h1
-        for _ in range(5):
-            parent = current.parent if current else None
-            if not isinstance(parent, Tag):
-                break
-            parent_text = clean(parent.get_text(" ", strip=True))
-            parsed = ua_date(clean(parent_text.replace(title, "", 1)))
+    title = clean(h1.get_text(" ", strip=True))
+
+    # 4. Search direct content that follows h1 or one of its containers.
+    #    next_siblings never enters the h1 descendants, so the title's
+    #    "28 липня 2021 р." cannot be selected.
+    anchor: Tag | None = h1
+    for _ in range(6):
+        if not isinstance(anchor, Tag):
+            break
+
+        collected: list[str] = []
+        for sibling in anchor.next_siblings:
+            if isinstance(sibling, Tag):
+                if sibling.name in {"h1", "article"}:
+                    break
+                value = clean(sibling.get_text(" ", strip=True))
+            else:
+                value = clean(str(sibling))
+
+            if not value:
+                continue
+
+            collected.append(value)
+            combined = clean(" ".join(collected))
+            parsed = ua_date(combined)
             if parsed:
                 return parsed
-            current = parent
+
+            if len(combined) >= 900:
+                break
+
+        parent = anchor.parent
+        anchor = parent if isinstance(parent, Tag) else None
+
+    # 5. Last conservative fallback: inspect a parent block only after
+    #    removing the exact h1 title and only the first short fragment.
+    current: Tag | None = h1
+    for _ in range(5):
+        parent = current.parent if current else None
+        if not isinstance(parent, Tag):
+            break
+
+        parent_text = clean(parent.get_text(" ", strip=True))
+        title_pos = parent_text.find(title)
+        if title_pos >= 0:
+            after_title = parent_text[title_pos + len(title) : title_pos + len(title) + 900]
+            parsed = ua_date(after_title)
+            if parsed:
+                return parsed
+
+        current = parent
 
     return None
 
