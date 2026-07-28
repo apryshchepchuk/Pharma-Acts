@@ -1,0 +1,82 @@
+name: Diagnose Apteka UA Project Monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Кількість календарних днів до дати перевірки"
+        required: false
+        default: "14"
+      max_pages:
+        description: "Максимум сторінок категорії МОЗ для перевірки"
+        required: false
+        default: "5"
+      as_of_date:
+        description: "Дата перевірки YYYY-MM-DD; порожньо = поточна дата Europe/Kyiv"
+        required: false
+        default: ""
+      date_basis:
+        description: "Дата для відбору"
+        required: false
+        default: "apteka"
+        type: choice
+        options:
+          - apteka
+          - official_or_apteka
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-apteka-diagnostics.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-apteka-diagnostics.txt
+
+      - name: Diagnose Apteka.ua sources and parsing
+        id: diagnose
+        continue-on-error: true
+        env:
+          LOOKBACK_DAYS: ${{ inputs.lookback_days }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+          AS_OF_DATE: ${{ inputs.as_of_date }}
+          DATE_BASIS: ${{ inputs.date_basis }}
+        run: python scripts/diagnose_apteka_projects.py
+
+      - name: Add report to workflow summary
+        if: always()
+        run: |
+          if [ -f reports/apteka_diagnostics.md ]; then
+            cat reports/apteka_diagnostics.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Apteka.ua diagnostics" >> "$GITHUB_STEP_SUMMARY"
+            echo "Markdown-звіт не створено. Перегляньте лог попереднього кроку." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apteka-source-diagnostics
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail only when diagnostic script crashed
+        if: steps.diagnose.outcome == 'failure'
+        run: exit 1
