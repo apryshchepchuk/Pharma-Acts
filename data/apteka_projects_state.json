@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-10-04T14:52:32.953438+03:00",
+  "updated_at": "2026-10-11T15:13:21.325268+03:00",
   "items": {
     "750360": {
       "article_id": "750360",
@@ -792,6 +792,140 @@
       "days_until_deadline": 24,
       "notified_at": "2026-10-04T14:52:32.953324+03:00",
       "cached_at": "2026-10-04T14:52:31.084722+03:00"
+    },
+    "755232": {
+      "article_id": "755232",
+      "title": "Проєкт постанови КМУ «Про внесення змін до деяких постанов Кабінету Міністрів України щодо удосконалення механізму реімбурсації лікарських засобів»",
+      "article_url": "https://www.apteka.ua/article/755232/",
+      "apteka_publication_date": "2026-10-09",
+      "content_hash": "5dc279ca5d704ca1fc18b07e8ba83da126d9e9642efa0741c91e290a45496975",
+      "document_links": [
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Porivnyalna-tablytsya.pdf"
+      ],
+      "document_items": [
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Porivnyalna-tablytsya.pdf",
+          "label": "Порівняльна таблиця"
+        }
+      ],
+      "official_links": [
+        "https://zakon.rada.gov.ua/laws/show/854-2021-%D0%BF#n91"
+      ],
+      "email_hints": [
+        "moz@moz.gov.ua",
+        "v.i.byk@moz.gov.ua"
+      ],
+      "phone_hints": [],
+      "ai_status": "OK",
+      "ai_model": "gemini-3.1-flash-lite",
+      "ai_schema_version": 3,
+      "ai_cached": false,
+      "act_type": "постанова КМУ",
+      "developer": "Міністерство охорони здоров’я України",
+      "official_source_url": "https://zakon.rada.gov.ua/laws/show/854-2021-%D0%BF#n91",
+      "official_publication_date": "2026-10-08",
+      "official_date_source": "GEMINI_VALIDATED",
+      "official_date_evidence": "Проєкт оприлюднений на сайті МОЗ України 08.10.2026 р.",
+      "deadline_date": "2026-10-22",
+      "deadline_basis": "CALCULATED",
+      "deadline_source": "GEMINI_VALIDATED",
+      "deadline_evidence": "Зауваження та пропозиції приймаються Департаментом медичних послуг протягом 14 календарних днів з дати оприлюднення цього повідомлення",
+      "contact_department": "Департамент медичних послуг",
+      "contact_person": "",
+      "contact_position": "",
+      "postal_address": "Міністерство охорони здоров‘я України, 01601, м. Київ, вул. Грушевського, 7",
+      "emails": [
+        "moz@moz.gov.ua",
+        "v.i.byk@moz.gov.ua"
+      ],
+      "phones": [],
+      "submission_format": "письмово або електронно",
+      "contacts_evidence": "Зауваження та пропозиції приймаються Департаментом медичних послуг протягом 14 календарних днів з дати оприлюднення цього повідомлення у письмовому або електронному вигляді на адреси: Міністерство охорони здоров‘я України, 01601, м. Київ, вул. Грушевського,7; e-mail: moz@moz.gov.ua, v.i.byk@moz.gov.ua.",
+      "summary_paragraphs": [
+        "Проєкт запроваджує механізм терапевтичних груп лікарських засобів, що дозволяє об’єднувати препарати з різними міжнародними непатентованими назвами для цілей ціноутворення та реімбурсації. До складу перших груп увійшли інгібітори SGLT2 (дапагліфлозин, емпагліфлозин) та комбінації інгаляційних кортикостероїдів з формотеролом.",
+        "Для препаратів, включених до терапевтичних груп, гранична оптово-відпускна ціна встановлюватиметься як медіана вартості всіх засобів групи в перерахунку на визначену одиницю дозування. Це рішення спрямоване на усунення цінових розривів між взаємозамінними лікарськими засобами.",
+        "Скасовується фіксований розмір реімбурсації для дапагліфлозину, емпагліфлозину та ривароксабану, що має стимулювати цінову конкуренцію між виробниками. Для апіксабану та дабігатрану етексилату фіксований розмір відшкодування на рівні 50% зберігається."
+      ],
+      "confidence": "HIGH",
+      "warnings": [],
+      "days_until_deadline": 11,
+      "notified_at": "2026-10-11T15:13:21.325170+03:00",
+      "cached_at": "2026-10-11T15:13:10.395288+03:00"
+    },
+    "754613": {
+      "article_id": "754613",
+      "title": "Проєкт постанови Кабінету Міністрів України «Про затвердження Переліку та граничних розмірів платних послуг, що надаються Українським фармацевтичним агентством, Порядку визначення, внесення і повернення плати за платні послуги, що надаються Українським фармацевтичним агентством»",
+      "article_url": "https://www.apteka.ua/article/754613/",
+      "apteka_publication_date": "2026-10-08",
+      "content_hash": "a07080567ffb21565ca1f157620af02343b7439aa40a4f75b434679634d34dce",
+      "document_links": [
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/10/ANALIZ-REGULYATORNOGO-VPLYVU.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Dodatok-1-do-Analizu-regulyatornogo-vplyvu.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Dodatok-2-do-Analizu-regulyatornogo-vplyvu.pdf",
+        "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Dodatok-3-do-Analizu-regulyatornogo-vplyvu.pdf"
+      ],
+      "document_items": [
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/10/ANALIZ-REGULYATORNOGO-VPLYVU.pdf",
+          "label": "Аналіз регуляторного впливу"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Dodatok-1-do-Analizu-regulyatornogo-vplyvu.pdf",
+          "label": "Аналіз регуляторного впливу"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Dodatok-2-do-Analizu-regulyatornogo-vplyvu.pdf",
+          "label": "Аналіз регуляторного впливу"
+        },
+        {
+          "url": "https://www.apteka.ua/wp/wp-content/uploads/2026/10/Dodatok-3-do-Analizu-regulyatornogo-vplyvu.pdf",
+          "label": "Аналіз регуляторного впливу"
+        }
+      ],
+      "official_links": [],
+      "email_hints": [
+        "moz@moz.gov.ua",
+        "a.v.larina@moz.gov.ua",
+        "moz.pharm@moz.gov.ua"
+      ],
+      "phone_hints": [],
+      "ai_status": "OK",
+      "ai_model": "gemini-3.1-flash-lite",
+      "ai_schema_version": 3,
+      "ai_cached": false,
+      "act_type": "постанова КМУ",
+      "developer": "Міністерство охорони здоров’я України",
+      "official_source_url": "",
+      "official_publication_date": "2026-10-06",
+      "official_date_source": "GEMINI_VALIDATED",
+      "official_date_evidence": "Зауваження та пропозиції просимо надсилати протягом 30 днів починаючи з 06 жовтня 2026 року",
+      "deadline_date": "2026-11-05",
+      "deadline_basis": "CALCULATED",
+      "deadline_source": "GEMINI_VALIDATED",
+      "deadline_evidence": "Зауваження та пропозиції просимо надсилати протягом 30 днів починаючи з 06 жовтня 2026 року",
+      "contact_department": "Міністерство охорони здоров’я України",
+      "contact_person": "",
+      "contact_position": "",
+      "postal_address": "м. Київ, 01601, вул. Грушевського 7",
+      "emails": [
+        "moz@moz.gov.ua",
+        "a.v.larina@moz.gov.ua",
+        "moz.pharm@moz.gov.ua"
+      ],
+      "phones": [],
+      "submission_format": "письмово або електронною поштою",
+      "contacts_evidence": "Зауваження та пропозиції просимо надсилати протягом 30 днів починаючи з 06 жовтня 2026 року до Міністерства охорони здоров’я України за адресою: м. Київ, 01601, вул. Грушевського 7, адреса електронної пошти: moz@moz.gov.ua, a.v.larina@moz.gov.ua, moz.pharm@moz.gov.ua.",
+      "summary_paragraphs": [
+        "Проєкт постанови затверджує перелік та граничні розміри платних послуг, що надаватимуться Українським фармацевтичним агентством, а також визначає порядок їх замовлення, оплати та повернення коштів.",
+        "Документ встановлює механізм тарифоутворення, згідно з яким тарифи на послуги визначатимуться агентством у межах граничних розмірів, затверджених Кабінетом Міністрів України, з урахуванням складності та обсягу робіт.",
+        "Кошти, отримані від надання платних послуг, зараховуватимуться до спеціального фонду державного бюджету та спрямовуватимуться на фінансування діяльності Українського фармацевтичного агентства.",
+        "Проєктом передбачено можливість залучення спеціалізованих державних підприємств до проведення експертиз у разі недостатності власних ресурсів агентства, при цьому витрати на такі послуги включатимуться до вартості основної послуги."
+      ],
+      "confidence": "HIGH",
+      "warnings": [],
+      "days_until_deadline": 25,
+      "notified_at": "2026-10-11T15:13:21.325170+03:00",
+      "cached_at": "2026-10-11T15:13:18.547161+03:00"
     }
   }
 }
